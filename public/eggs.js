@@ -80,7 +80,7 @@ export function initEggs({ toast, confetti }) {
         if (flagsPoked.size >= 8) { flagsPoked.clear(); rain(FLAGS.slice(0, 8), 30, true); toast('🚩 You poked eight flags. Respect.'); mark('egg', 'flagrail'); }
       }
     }
-    const pinny = t.closest?.('.pinny');
+    const pinny = t.closest?.('.pinny:not(.mate)');
     if (pinny) {
       const moods = ['happy', 'cool', 'party', 'sleepy', 'wow'];
       const i = (moods.indexOf(pinny.dataset.mood) + 1) % moods.length;

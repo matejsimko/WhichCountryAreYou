@@ -2,6 +2,8 @@
 import { getMe, mark, startTracking, setUnlockHandler, evaluate, ACHIEVEMENTS, level, fmtTime, streak, EGGS_TOTAL } from './me.js';
 import { openShare } from './share.js';
 import { initEggs } from './eggs.js';
+import { initGuide } from './guide.js';
+import { initTour, tourState } from './tour.js';
 import { sfx, initSfx } from './sfx.js';
 
 const app = document.getElementById('app');
@@ -108,9 +110,10 @@ function skySVG() {
 
 
 // Pinny, the paper map pin. Moods are cycled by clicking (see eggs.js); CSS does the rest.
-const pinny = (x, y) => `<g transform="translate(${x} ${y}) scale(1.45)" class="pinny" data-mood="happy" data-i="0" tabindex="0" role="img" aria-label="Pinny the map pin. Click for a new look.">
+const pinny = (x, y, cls = '', k = 1.45) => `<g transform="translate(${x} ${y}) scale(${k})" class="pinny ${cls}" data-mood="happy" data-i="0" tabindex="0" role="img" aria-label="Pinny the map pin. Click for a new look.">
   <ellipse cy="3" rx="30" ry="6" fill="#0A5F55" opacity=".3"/>
   <g class="p-all"><g class="p-bob">
+    <g class="p-wings"><path class="wing l" d="M-30-62C-64-100-92-72-74-48C-64-36-42-44-30-52Z" fill="#fff" stroke="#E6DAC3" stroke-width="2.5"/><path class="wing r" d="M30-62C64-100 92-72 74-48C64-36 42-44 30-52Z" fill="#fff" stroke="#E6DAC3" stroke-width="2.5"/></g>
     <rect x="22" y="-86" width="22" height="38" rx="9" fill="#0F8A7A" stroke="#0A5F55" stroke-width="2"/>
     <ellipse cx="-13" cy="-4" rx="11" ry="6.5" fill="#3A2A22"/><ellipse cx="13" cy="-4" rx="11" ry="6.5" fill="#3A2A22"/>
     <g class="p-arm l"><path d="M-33-54Q-48-50-50-38" fill="none" stroke="#C6431F" stroke-width="7" stroke-linecap="round"/></g>
@@ -118,7 +121,7 @@ const pinny = (x, y) => `<g transform="translate(${x} ${y}) scale(1.45)" class="
     <g class="p-arm r"><path d="M33-54Q50-58 52-74" fill="none" stroke="#C6431F" stroke-width="7" stroke-linecap="round"/></g>
     <circle cy="-66" r="19" fill="#FFFCF5"/>
     <circle cx="-12" cy="-58" r="3.6" fill="#FF8FA8" opacity=".6"/><circle cx="12" cy="-58" r="3.6" fill="#FF8FA8" opacity=".6"/>
-    <g class="p-eyes"><g class="p-eye"><circle cx="-7" cy="-70" r="4.4" fill="#243230"/><circle cx="-8.4" cy="-71.4" r="1.5" fill="#fff"/></g><g class="p-eye"><circle cx="7" cy="-70" r="4.4" fill="#243230"/><circle cx="5.6" cy="-71.4" r="1.5" fill="#fff"/></g></g>
+    <g class="p-eyes"><g class="p-eye"><g class="p-look"><circle cx="-7" cy="-70" r="4.4" fill="#243230"/><circle cx="-8.4" cy="-71.4" r="1.5" fill="#fff"/></g></g><g class="p-eye"><g class="p-look"><circle cx="7" cy="-70" r="4.4" fill="#243230"/><circle cx="5.6" cy="-71.4" r="1.5" fill="#fff"/></g></g></g>
     <g class="p-closed"><path d="M-12-70q5 4 10 0M2-70q5 4 10 0" fill="none" stroke="#243230" stroke-width="2.5" stroke-linecap="round"/></g>
     <path class="m-smile" d="M-7-59Q0-52 7-59" fill="none" stroke="#243230" stroke-width="2.8" stroke-linecap="round"/>
     <ellipse class="m-open" cy="-56" rx="5" ry="6" fill="#243230"/>
@@ -361,6 +364,7 @@ function mountBlock(el, d, ctx = {}) {
       reward = d.options.find((o) => o.id === optionId)?.reward || null;
       draw();
       sfx.vote();
+      dispatchEvent(new CustomEvent('wcay:vote'));
       if (ev) confetti(ev.clientX, ev.clientY);
       if (changed) mark('changed');
       ctx.onVoted?.(d);
@@ -467,7 +471,7 @@ async function home() {
     <section class="hero">
       ${skySVG()}
       <div class="bunting" id="bunting"></div>
-      <div class="wrap hero-copy">
+      <div class="wrap hero-copy" data-guide="Type your country!" data-guide-mood="wow">
         <h1 class="display title" aria-label="Which country are you?"><span class="w w1">Which</span> <span class="w w2">country</span><br><span class="w w3">are</span> <span class="w w4">you?</span></h1>
         <p class="hero-sub">Say where you're from. Vote on everything else. Watch the whole world answer.</p>
       </div>
@@ -475,16 +479,16 @@ async function home() {
       ${hillsSVG()}
     </section>
     <div class="wrap">
-      ${top.length ? `<section class="section" aria-labelledby="world"><div class="section-head"><h2 id="world">Who's here so far</h2><a class="link" href="/q/country" data-link>See all countries</a></div><div class="sticker-row">${top.map((o, i) => `<a class="sticker" style="--i:${i}" href="/q/country" data-link>${flagImg(flagOf(o))}<span>${esc(o.label)}</span><small class="num">${pctText((o.c / country.total) * 100, true)}</small></a>`).join('')}</div></section>` : ''}
-      <section class="section" aria-labelledby="mapt">
+      ${top.length ? `<section class="section" aria-labelledby="world" data-guide="Who's leading?"><div class="section-head"><h2 id="world">Who's here so far</h2><a class="link" href="/q/country" data-link>See all countries</a></div><div class="sticker-row">${top.map((o, i) => `<a class="sticker" style="--i:${i}" href="/q/country" data-link>${flagImg(flagOf(o))}<span>${esc(o.label)}</span><small class="num">${pctText((o.c / country.total) * 100, true)}</small></a>`).join('')}</div></section>` : ''}
+      <section class="section" aria-labelledby="mapt" data-guide="Zoom, drag, tap!" data-guide-mood="wow">
         <div class="section-head"><h2 id="mapt">Watch the world fill in</h2><a class="link" href="/map" data-link>Open the full map</a></div>
         <div id="map-slot" class="map-slot"></div>
       </section>
-      <section class="section" aria-labelledby="quick">
+      <section class="section" aria-labelledby="quick" data-guide="Vote! Change it anytime." data-guide-mood="cool">
         <div class="section-head"><h2 id="quick">While you're here</h2><a class="link" href="/explore" data-link>All ${s.questions} questions</a></div>
         <div class="grid">${feat.map((d) => `<article class="card paper hued" style="--h:${d.hue}"><span class="card-tag">${esc(catLabel(list, d.category))}</span><h3 class="card-q"><a href="/q/${esc(d.id)}" data-link>${esc(d.prompt)}</a></h3><div data-block="${esc(d.id)}"></div></article>`).join('')}</div>
       </section>
-      <section class="section" style="text-align:center"><a class="btn" href="/explore" data-link>See every question ${ARROW}</a></section>
+      <section class="section" style="text-align:center" data-guide="25 questions. Hungry?" data-guide-mood="party"><a class="btn" href="/explore" data-link>See every question ${ARROW}</a></section>
     </div></div>`;
 
   buildBunting(app.querySelector('#bunting'));
@@ -495,7 +499,7 @@ async function home() {
 }
 
 // the interactive map is loaded only when someone gets near it
-const mapCtx = () => ({ esc, fmt, pctText, flagImg, go, getList, getDetail, track: mark, toast, vote: async (questionId, optionId) => { const r = await api('/vote', { questionId, optionId }); detailCache.set(questionId, r); if (listCache) (listCache.placeMine ||= {})[questionId] = r.mine; sfx.vote(); checkAchievements(); return r; }, celebrate: confetti });
+const mapCtx = () => ({ esc, fmt, pctText, flagImg, go, getList, getDetail, track: mark, toast, vote: async (questionId, optionId) => { const r = await api('/vote', { questionId, optionId }); detailCache.set(questionId, r); if (listCache) (listCache.placeMine ||= {})[questionId] = r.mine; sfx.vote(); dispatchEvent(new CustomEvent('wcay:vote')); checkAchievements(); return r; }, celebrate: confetti });
 function lazyMap(slot, opts) {
   const start = async () => {
     try { const { mountMap } = await import('/map.js'); await mountMap(slot, mapCtx(), opts); mark('map'); }
@@ -508,7 +512,7 @@ function lazyMap(slot, opts) {
 
 async function mapPage() {
   setHue(178);
-  app.innerHTML = `<div class="view wrap map-page"><div class="page-head"><p class="eyebrow">The map</p><h1 class="display">The world, answered.</h1><p>Zoom in on a continent or tap a country to see how it voted.</p></div><div id="map-slot" class="map-slot"></div></div>`;
+  app.innerHTML = `<div class="view wrap map-page"><div class="page-head" data-guide="Scroll to zoom!" data-guide-mood="wow"><p class="eyebrow">The map</p><h1 class="display">The world, answered.</h1><p>Zoom in on a continent or tap a country to see how it voted.</p></div><div id="map-slot" class="map-slot"></div></div>`;
   const q = new URLSearchParams(location.search).get('q');
   await new Promise((r) => requestAnimationFrame(r));
   lazyMap(app.querySelector('#map-slot'), { wheel: true, question: q });
@@ -528,7 +532,7 @@ async function explore() {
       }).join('')}</ul></section>`;
     }).join('');
   };
-  app.innerHTML = `<div class="view wrap"><div class="page-head"><p class="eyebrow">${list.stats.questions} questions</p><h1 class="display">Ask the world anything.</h1><p>Every question, with the answers so far. Pick one.</p></div>
+  app.innerHTML = `<div class="view wrap"><div class="page-head" data-guide="Pick one!" data-guide-mood="happy"><p class="eyebrow">${list.stats.questions} questions</p><h1 class="display">Ask the world anything.</h1><p>Every question, with the answers so far. Pick one.</p></div>
     <div class="chips explore-chips" id="chips"><button class="chip" type="button" data-cat="all" aria-pressed="true">Everything</button>${list.categories.map((c) => `<button class="chip" type="button" data-cat="${c.id}" aria-pressed="false">${esc(c.label)}</button>`).join('')}</div>
     <div id="cats"></div></div>`;
   app.querySelector('#chips').addEventListener('click', (e) => {
@@ -547,13 +551,13 @@ async function questionPage(id) {
   document.title = `${d.prompt} · Which Country Are You?`;
   app.innerHTML = `<div class="view wrap q-page">
     <a class="back" href="${d.country ? '/q/country' : '/explore'}" data-link>${BACK} ${d.country ? 'Back to countries' : 'All questions'}</a>
-    <div class="q-head hued" style="--h:${d.hue}">
+    <div class="q-head hued" style="--h:${d.hue}" data-guide="${d.country ? 'Pick your city or region. Search works too.' : 'Pick one. You can change your answer any time.'}">
       <p class="eyebrow">${esc(catLabel(list, d.category))}</p>
       <h1 class="display q-title">${esc(d.prompt)}</h1>
       <div class="q-sum" id="sum"></div>
     </div>
-    <div class="q-body" id="block"></div>
-    <div class="q-after" id="after"></div>
+    <div class="q-body" id="block" data-guide="Scroll, sort, filter." data-guide-mood="cool"></div>
+    <div class="q-after" id="after" data-guide="Share it!" data-guide-mood="party"></div>
   </div>`;
 
   const sum = app.querySelector('#sum');
@@ -592,7 +596,7 @@ async function questionPage(id) {
 
 function about() {
   setHue(178);
-  app.innerHTML = `<div class="view wrap"><div class="page-head"><p class="eyebrow">About</p><h1 class="display">A small experiment with the whole world.</h1></div>
+  app.innerHTML = `<div class="view wrap"><div class="page-head" data-guide="The story!" data-guide-mood="happy"><p class="eyebrow">About</p><h1 class="display">A small experiment with the whole world.</h1></div>
   <div class="prose">
     <p>Which Country Are You started as a question: <em>how many different people can we get to answer the same simple questions?</em> Where are you from, cats or dogs, coffee or tea. No accounts, no sign-up, nothing to win. Just a place where anyone can drop in, vote, and see the internet answer back.</p>
     <h2>How it began</h2>
@@ -626,6 +630,7 @@ function checkAchievements() {
   if (!fresh.length) return;
   const lines = fresh.length > 2 ? [`🏅 ${fresh.length} new badges! Open your passport.`] : fresh.map((b) => `${b.e} Badge unlocked: ${b.n}`);
   sfx.badge();
+  dispatchEvent(new CustomEvent('wcay:badge'));
   for (const line of lines) toastQueue = toastQueue.then(() => { toast(line); confetti(innerWidth / 2, innerHeight * 0.7); return new Promise((r) => setTimeout(r, 3300)); });
 }
 const afterVote = () => checkAchievements();
@@ -648,7 +653,7 @@ async function profilePage() {
     ['🥚', 'Secrets found', `${eggs}/${EGGS_TOTAL}`], ['📣', 'Times shared', me.shares], ['🔄', 'Changed my mind', me.changed],
   ];
   app.innerHTML = `<div class="view wrap profile">
-    <div class="page-head"><p class="eyebrow">Your passport</p><h1 class="display">${esc(lv.title)}</h1></div>
+    <div class="page-head" data-guide="Your passport!" data-guide-mood="cool"><p class="eyebrow">Your passport</p><h1 class="display">${esc(lv.title)}</h1></div>
     <section class="passport paper">
       <div class="pp-avatar">${flag ? flagImg(flag) : '<span aria-hidden="true">🌍</span>'}</div>
       <div class="pp-main"><strong>${ev.n} of ${total} questions answered</strong><div class="xp" role="progressbar" aria-valuenow="${lv.pct}" aria-valuemin="0" aria-valuemax="100"><i style="--w:${lv.pct}"></i></div><span>${earnedCount} of ${ACHIEVEMENTS.length} badges collected</span></div>
@@ -656,13 +661,14 @@ async function profilePage() {
     </section>
     <div class="stat-grid">${tiles.map(([e, l, v]) => `<div class="stat"><span class="stat-e" aria-hidden="true">${e}</span><b class="num">${v}</b><small>${l}</small></div>`).join('')}</div>
     <div class="section-head" style="margin-top:44px"><h2>Badges</h2><span class="block-note">${earnedCount}/${ACHIEVEMENTS.length}</span></div>
-    <div class="badges">${ACHIEVEMENTS.map((a) => {
+    <div class="badges" data-guide="Collect them all!" data-guide-mood="party">${ACHIEVEMENTS.map((a) => {
       const on = ev.earned.has(a.id);
       const hide = a.secret && !on;
       return `<div class="badge ${on ? 'on' : 'off'}"><span class="badge-ic" aria-hidden="true">${hide ? '❓' : a.e}</span><strong>${hide ? 'Secret' : esc(a.n)}</strong><small>${hide ? 'Keep exploring. Poke things.' : esc(a.d)}</small></div>`;
     }).join('')}</div>
     <div class="section-head" style="margin-top:44px"><h2>Your answers</h2></div>
     ${ev.n ? `<ul class="rows">${list.questions.filter((q) => q.mine).map((q) => `<li><a class="row hued" style="--h:${q.hue}" href="/q/${esc(q.id)}" data-link><span class="row-main">${q.mineOpt?.flag ? flagImg(q.mineOpt.flag) : q.mineOpt?.swatch ? `<span class="opt-swatch" style="background:${esc(q.mineOpt.swatch)}"></span>` : q.mineOpt?.emoji ? `<span class="opt-emoji big" aria-hidden="true">${q.mineOpt.emoji}</span>` : '<i class="row-dot"></i>'}<span class="row-prompt">${esc(q.prompt)}<span class="row-sub">You said <strong>${esc(q.mineOpt?.label || '')}</strong></span></span></span><span class="row-go">${ARROW}</span></a></li>`).join('')}</ul>` : '<p class="empty">Nothing yet. <a href="/explore" data-link>Answer a question</a> and your passport starts to fill.</p>'}
+    <p class="pp-actions">${guide?.hidden ? '<button class="btn alt" type="button" id="call-pinny">Call Pinny back</button> ' : ''}<button class="btn alt" type="button" id="take-tour">Take the tour</button></p>
     <p class="fine">Badges, time and streaks are saved in this browser only. Your votes stay counted on the server either way.</p>
   </div>`;
   const pt = app.querySelector('#pt');
@@ -670,6 +676,8 @@ async function profilePage() {
   tick();
   clearInterval(profileTimer);
   profileTimer = setInterval(() => (document.body.contains(pt) ? tick() : clearInterval(profileTimer)), 1000);
+  app.querySelector('#take-tour')?.addEventListener('click', () => tour.start());
+  app.querySelector('#call-pinny')?.addEventListener('click', (e) => { guide.callBack(); e.target.remove(); });
   app.querySelector('#share-pp').addEventListener('click', () => openShare({ title: 'My passport', text: `I'm a ${lv.title} on Which Country Are You: ${ev.n}/${total} answered, ${earnedCount} badges. What's your passport?`, url: location.origin, toast }));
 }
 
@@ -692,7 +700,7 @@ async function render() {
   for (const [re, fn] of routes) {
     const m = re.exec(path);
     if (m) {
-      try { await fn(m); checkAchievements(); } catch (err) { app.innerHTML = `<div class="view wrap page-head"><h1 class="display">${err.status === 404 ? "That question isn't here." : 'Something broke.'}</h1><p>${esc(err.message)}</p><p><a class="btn" href="/" data-link>Back home</a></p></div>`; }
+      try { await fn(m); checkAchievements(); guide?.scan(); } catch (err) { app.innerHTML = `<div class="view wrap page-head"><h1 class="display">${err.status === 404 ? "That question isn't here." : 'Something broke.'}</h1><p>${esc(err.message)}</p><p><a class="btn" href="/" data-link>Back home</a></p></div>`; }
       return;
     }
   }
@@ -717,4 +725,8 @@ initFooter();
 startTracking();
 initSfx();
 initEggs({ toast, confetti });
+let guide = null;
+const pinnySVG = () => `<svg viewBox="-62 -134 124 150" width="100%" height="100%" aria-hidden="true">${pinny(0, 0, 'mate', 1)}</svg>`;
+const tour = initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast });
+guide = initGuide({ pinnySVG, startTour: () => tour.start(), tourActive: () => tour.active, tourState, esc, fmt, flagImg, level, fmtTime, getMe, evaluate, getList, mineMap, go, confetti, ACHIEVEMENTS });
 render();

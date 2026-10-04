@@ -515,3 +515,94 @@ span.rain { box-shadow: none; }
 .share-card-actions { display: flex; justify-content: center; gap: 10px; margin-top: 12px; }
 .share-card-actions .btn.mini { text-decoration: none; box-shadow: 0 3px 0 var(--teal-deep); }
 .share-card-actions .btn.alt.mini { box-shadow: 0 3px 0 var(--line), 0 0 0 2px var(--line) inset; }
+
+
+/* ================= PINNY THE GUIDE ================= */
+.guide { position: fixed; z-index: 45; left: 0; top: 0; pointer-events: none; visibility: visible; will-change: transform; }
+.guide[hidden] { display: none; }
+.guide > * { pointer-events: auto; }
+.guide-fly { position: relative; width: 84px; height: 100px; }
+.guide-btn { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; filter: drop-shadow(0 10px 8px rgba(40, 30, 10, .3)); transform-origin: 50% 70%; }
+.guide .pinny { cursor: pointer; }
+/* speech bubble: a little paper sticker with a tail, same colours as Pinny */
+.guide-bubble { position: absolute; bottom: 104px; width: max-content; max-width: min(240px, 70vw); padding: 9px 16px 10px; border-radius: 22px; background: #fff; border: 3px solid var(--tomato); color: var(--ink); font-family: var(--font-display); font-weight: 600; font-size: 1.02rem; line-height: 1.2; text-wrap: balance; text-align: center; box-shadow: 0 5px 0 rgba(198, 67, 31, .35), 0 14px 22px -10px rgba(40, 30, 10, .45); pointer-events: none; transform-origin: 80% 100%; }
+.guide-bubble::after { content: ''; position: absolute; bottom: -13px; width: 18px; height: 18px; background: #fff; border-right: 3px solid var(--tomato); border-bottom: 3px solid var(--tomato); border-bottom-right-radius: 6px; transform: rotate(45deg) skew(8deg, 8deg); }
+.guide-bubble[data-side='right'] { right: 4px; }
+.guide-bubble[data-side='left'] { left: 4px; transform-origin: 20% 100%; }
+.guide-bubble[data-side='right']::after { right: 34px; }
+.guide-bubble[data-side='left']::after { left: 34px; }
+.guide-bubble.in { animation: bubblein .5s cubic-bezier(.2, 1.5, .3, 1) both; }
+@keyframes bubblein { from { opacity: 0; transform: scale(.3) rotate(-6deg); } 60% { transform: scale(1.08) rotate(2deg); } }
+.guide-bubble.has-actions { pointer-events: auto; max-width: min(250px, 76vw); }
+.guide-bubble strong { color: var(--tomato); }
+.guide-panel { position: absolute; bottom: 100px; width: min(300px, calc(100vw - 28px)); padding: 16px 16px 14px; border-radius: 24px; background: var(--card); box-shadow: 0 0 0 2px var(--line), 0 24px 44px -14px rgba(40, 30, 10, .55); }
+.guide-panel[data-side='right'] { right: 0; transform-origin: 90% 100%; }
+.guide-panel[data-side='left'] { left: 0; transform-origin: 10% 100%; }
+.guide-panel.in { animation: panelin .5s cubic-bezier(.2, 1.35, .3, 1) both; }
+@keyframes panelin { from { opacity: 0; transform: scale(.3) translateY(30px); } }
+.panel-x { position: absolute; right: 10px; top: 10px; width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--soft); font-size: 1.2rem; line-height: 1; }
+.gp-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.gp-avatar { display: grid; place-items: center; flex: none; width: 52px; height: 52px; border-radius: 50%; background: var(--soft); font-size: 1.7rem; overflow: hidden; box-shadow: 0 0 0 3px #fff, 0 4px 10px rgba(40, 30, 10, .25); }
+.gp-avatar .flag { width: 100%; height: 100%; box-shadow: none; }
+.gp-top .eyebrow { margin: 0; font-size: .68rem; }
+.gp-title { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; line-height: 1.1; }
+.gp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 14px 0 10px; text-align: center; }
+.gp-stats b { display: block; font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; line-height: 1.1; }
+.gp-stats small { color: var(--muted); font-size: .75rem; }
+.gp-badges { display: flex; flex-wrap: wrap; gap: 6px; font-size: 1.35rem; min-height: 30px; }
+.gp-badges small { color: var(--muted); font-size: .82rem; align-self: center; }
+.gp-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.gp-actions .link { font-size: .8rem; }
+.iris { position: fixed; inset: 0; z-index: 100; background: var(--paper); pointer-events: none; clip-path: circle(0 at var(--x) var(--y)); transition: clip-path .55s cubic-bezier(.6, .1, .3, 1), opacity .5s; }
+.iris.grow { clip-path: circle(150% at var(--x) var(--y)); }
+.iris.out { opacity: 0; }
+@media (max-width: 640px) {
+  .guide-fly { width: 64px; height: 76px; }
+  .guide-bubble { bottom: 80px; font-size: .95rem; }
+  .guide-panel { bottom: 84px; }
+}
+@media print { .guide { display: none; } }
+
+
+/* ================= TOUR ================= */
+.tour-spot { position: fixed; z-index: 80; border-radius: 22px; box-shadow: 0 0 0 4px #fff, 0 0 0 9999px rgba(36, 50, 48, .58); pointer-events: none; transition: left .55s cubic-bezier(.3, 1, .3, 1), top .55s cubic-bezier(.3, 1, .3, 1), width .55s cubic-bezier(.3, 1, .3, 1), height .55s cubic-bezier(.3, 1, .3, 1), opacity .3s; animation: spotpulse 2.4s ease-in-out infinite; }
+@keyframes spotpulse { 50% { box-shadow: 0 0 0 7px rgba(255, 255, 255, .85), 0 0 0 9999px rgba(36, 50, 48, .58); } }
+.tour-card { position: fixed; z-index: 81; width: min(360px, calc(100vw - 24px)); padding: 16px 18px 14px; border-radius: 24px; background: var(--card); box-shadow: 0 0 0 2px var(--line), 0 24px 48px -14px rgba(20, 15, 5, .6); transition: left .55s cubic-bezier(.3, 1, .3, 1), top .55s cubic-bezier(.3, 1, .3, 1), opacity .3s; }
+.tour-card.in { animation: panelin .45s cubic-bezier(.2, 1.3, .3, 1) both; }
+.tour-spot.out, .tour-card.out { opacity: 0; }
+.tour-head { display: flex; align-items: center; gap: 12px; }
+.tour-pinny { flex: none; width: 52px; height: 62px; }
+.tour-head .eyebrow { margin: 0; font-size: .68rem; }
+.tour-title { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; line-height: 1.15; }
+.tour-text { margin: 10px 0 12px; font-size: .98rem; line-height: 1.45; text-wrap: pretty; }
+.tour-dots { display: flex; gap: 6px; margin-bottom: 12px; }
+.tour-dots i { width: 8px; height: 8px; border-radius: 99px; background: var(--line); transition: width .3s, background-color .3s; }
+.tour-dots i.on { width: 22px; background: var(--tomato); }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tour-actions .btn.mini { padding: 8px 16px; }
+.tour-actions button:disabled { opacity: .4; pointer-events: none; }
+
+.offer-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.offer-actions .btn.mini { padding: 7px 14px; font-size: .84rem; }
+.guide-panel .away { display: block; margin: 8px auto 0; font-size: .75rem; }
+.pp-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+
+
+/* ================= PINNY: wings, yawns, sparkles, being held ================= */
+.pinny .p-look { transition: transform .12s ease-out; }
+.pinny .p-wings { display: none; }
+.pinny.flying .p-wings { display: block; }
+.pinny .wing { transform-box: fill-box; }
+.pinny .wing.l { transform-origin: 100% 60%; animation: flapl .16s ease-in-out infinite alternate; }
+.pinny .wing.r { transform-origin: 0% 60%; animation: flapr .16s ease-in-out infinite alternate; }
+@keyframes flapl { from { transform: rotate(18deg) scaleY(1); } to { transform: rotate(-26deg) scaleY(.75); } }
+@keyframes flapr { from { transform: rotate(-18deg) scaleY(1); } to { transform: rotate(26deg) scaleY(.75); } }
+.pinny[data-mood='yawn'] .m-smile, .pinny[data-mood='yawn'] .p-eyes { display: none; }
+.pinny[data-mood='yawn'] .m-open { display: block; animation: yawnmouth 1.6s ease-in-out; transform-box: fill-box; transform-origin: 50% 0%; }
+.pinny[data-mood='yawn'] .p-closed { display: block; }
+@keyframes yawnmouth { 0%, 100% { transform: scale(.6, .5); } 35%, 70% { transform: scale(1.5, 1.9); } }
+.spark { position: fixed; z-index: 70; pointer-events: none; line-height: 1; will-change: transform, opacity; }
+.guide.held .guide-btn { cursor: grabbing; filter: drop-shadow(0 22px 14px rgba(40, 30, 10, .35)); }
+.guide.held .guide-fly { transition: transform .12s; }
+.guide-btn { touch-action: none; }
+.guide-btn svg, .tour-pinny svg { overflow: visible; }

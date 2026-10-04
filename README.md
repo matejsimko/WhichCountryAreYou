@@ -27,6 +27,10 @@ npm run seed:clear   # remove the demo votes
 
 `/map` and the landing page show an interactive world map: coloured by votes for any country question, smooth zoom to continents and countries, drag, pinch and Ctrl+scroll zoom, your own answer pinned. Outlines live in `public/map.json`, built from Natural Earth with `npm run build:map` (dev dependencies only; the result is committed). `public/map.js` is loaded only when the map scrolls into view.
 
+## Pinny, the pet
+
+`public/guide.js` is a flying companion. On the landing page he sits on the hill; scroll down and he takes off (wings, sparkle trail) and tags along, switching sides with a short tip per section. Elsewhere he waits bottom right. Eyes follow the cursor, hovering gets hearts, you can pick him up and carry him, he reacts to votes, badges and secrets, falls asleep when you stop, and now and then does a trick (somersault, orbit, loop, zoomies, chase, yawn, peek, dance). Click him for a mini passport that wipes into the full passport. `public/tour.js` is the 1-minute tutorial he offers on the first visit.
+
 ## Sharing
 
 The share popup (`public/share.js`) offers WhatsApp, X, Instagram (copies the link), Facebook, Telegram, Reddit, email and copy link. For answered questions it also draws a personal image card in the browser (`public/card.js`, 1080x1350) that can be saved or, on phones, shared directly. Link previews use `public/og.png`, drawn by `npm run build:og -- path/to/Fredoka.ttf`.

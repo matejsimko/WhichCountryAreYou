@@ -2,7 +2,7 @@
 // Votes themselves are tied to the device cookie on the server; everything else here is just for fun.
 
 const KEY = 'wcay_me_v1';
-const fresh = () => ({ first: Date.now(), playMs: 0, days: [], zoomed: [], eggs: [], shares: 0, changed: 0, mapOpened: false, night: false, unlocked: [] });
+const fresh = () => ({ tour: false, first: Date.now(), playMs: 0, days: [], zoomed: [], eggs: [], shares: 0, changed: 0, mapOpened: false, night: false, unlocked: [] });
 let me = fresh();
 try { me = { ...me, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { /* private mode: fine */ }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(me)); } catch { /* ignore */ } };
@@ -35,8 +35,10 @@ export function mark(kind, value) {
   else if (kind === 'share') me.shares++;
   else if (kind === 'changed') me.changed++;
   else if (kind === 'map') me.mapOpened = true;
+  else if (kind === 'tour') me.tour = true;
   else return;
   save();
+  dispatchEvent(new CustomEvent('wcay:mark', { detail: { kind, value } }));
   onUnlock();
 }
 
@@ -62,6 +64,7 @@ export function fmtTime(ms) {
 
 const is = (c, q, o) => c.mine[q] === o;
 export const ACHIEVEMENTS = [
+  { id: 'tour', e: '🎓', n: 'Orientation', d: 'Finish the tour with Pinny.', t: (c) => c.me.tour },
   { id: 'first', e: '🗳️', n: 'First vote', d: 'Answer your first question.', t: (c) => c.n >= 1 },
   { id: 'five', e: '🖐️', n: 'High five', d: 'Answer 5 questions.', t: (c) => c.n >= 5 },
   { id: 'ten', e: '🔟', n: 'Double digits', d: 'Answer 10 questions.', t: (c) => c.n >= 10 },
