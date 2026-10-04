@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640" fill="none">
+  <defs>
+    <pattern id="d" width="26" height="26" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.3" fill="#0F8A7A" opacity=".13"/></pattern>
+  </defs>
+  <rect width="640" height="640" fill="url(#d)"/>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- dashed routes -->
+    <path d="M30 120C120 40 220 200 330 110S520 60 610 150" stroke="#EE5A36" stroke-opacity=".28" stroke-width="2.5" stroke-dasharray="3 9"/>
+    <path d="M40 520C140 420 230 590 350 500S530 430 610 560" stroke="#0F8A7A" stroke-opacity=".22" stroke-width="2.5" stroke-dasharray="3 9"/>
+    <!-- x marks the spot -->
+    <path d="M330 300l18 18m0-18l-18 18" stroke="#EE5A36" stroke-opacity=".4" stroke-width="3"/>
+    <path d="M110 330l12 12m0-12l-12 12" stroke="#EE5A36" stroke-opacity=".3" stroke-width="2.5"/>
+    <!-- compass -->
+    <g transform="translate(500 300)" stroke="#0F8A7A" stroke-opacity=".3" stroke-width="2">
+      <circle r="26"/><path d="M0-40V40M-40 0H40" stroke-width="1.5"/><path d="M0-26 7 0 0 26-7 0Z" fill="#0F8A7A" fill-opacity=".12"/>
+      <text y="-46" font-family="sans-serif" font-size="11" fill="#0F8A7A" fill-opacity=".4" stroke="none" text-anchor="middle">N</text>
+    </g>
+    <!-- paper plane -->
+    <g transform="translate(180 220) rotate(-14)" stroke="#EE5A36" stroke-opacity=".38" stroke-width="2">
+      <path d="M0 0 44-14 20 22 16 6Z"/><path d="M16 6 44-14" />
+    </g>
+    <!-- globe -->
+    <g transform="translate(110 470)" stroke="#0F8A7A" stroke-opacity=".3" stroke-width="2">
+      <circle r="20"/><ellipse rx="9" ry="20"/><path d="M-20 0H20M-17-9H17M-17 9H17" stroke-width="1.4"/>
+    </g>
+    <!-- waves -->
+    <path d="M420 440q8-9 16 0t16 0 16 0 16 0" stroke="#41A9F0" stroke-opacity=".32" stroke-width="2.5"/>
+    <path d="M440 456q8-9 16 0t16 0 16 0" stroke="#41A9F0" stroke-opacity=".25" stroke-width="2.5"/>
+    <path d="M250 60q8-9 16 0t16 0 16 0" stroke="#41A9F0" stroke-opacity=".28" stroke-width="2.5"/>
+    <!-- little mountain -->
+    <path d="M290 560l22-36 14 20 10-14 26 30Z" stroke="#0F8A7A" stroke-opacity=".28" stroke-width="2"/>
+    <!-- circle route stops -->
+    <circle cx="330" cy="110" r="5" stroke="#EE5A36" stroke-opacity=".35" stroke-width="2"/>
+    <circle cx="350" cy="500" r="5" stroke="#0F8A7A" stroke-opacity=".3" stroke-width="2"/>
+  </g>
+</svg>

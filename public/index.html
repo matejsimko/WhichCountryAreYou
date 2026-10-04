@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="only light">
+<meta name="theme-color" content="#FBF3E4">
+<!--META-->
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Outfit:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<!-- rough paper edge, used by every .paper card -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="deckle" x="-3%" y="-3%" width="106%" height="106%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<header class="top wrap">
+  <a class="brand" href="/" data-link aria-label="Which Country Are You, home">
+    <svg class="brand-pin" width="22" height="28" viewBox="0 0 22 28" aria-hidden="true"><path d="M11 1C5.5 1 1 5.4 1 10.8 1 18 11 27 11 27s10-9 10-16.2C21 5.4 16.5 1 11 1Z" fill="#EE5A36"/><circle cx="11" cy="10.5" r="4" fill="#FFFCF5"/></svg>
+    <span>whichcountryareyou</span>
+  </a>
+  <nav class="nav" aria-label="Main">
+    <a href="/explore" data-link>Questions</a>
+    <a href="/about" data-link>About</a>
+  </nav>
+</header>
+
+<main id="app" tabindex="-1"></main>
+
+<footer class="foot">
+  <svg class="foot-edge" id="foot-edge" viewBox="0 0 1440 60" preserveAspectRatio="none" aria-hidden="true"></svg>
+  <div class="foot-body">
+    <div class="marquee" aria-hidden="true"><div class="marquee-track" id="marquee"></div></div>
+    <div class="wrap foot-text">
+      <p class="foot-line">No accounts. No emails. One vote per question per device, and you can change your mind.</p>
+      <p><a href="/explore" data-link>Questions</a> &nbsp;·&nbsp; <a href="/about" data-link>How it works</a></p>
+    </div>
+  </div>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<noscript><p class="wrap">This site needs JavaScript to show the votes.</p></noscript>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
