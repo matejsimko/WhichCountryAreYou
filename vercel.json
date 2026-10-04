@@ -1,0 +1,15 @@
+{
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index?route=api/:path*" },
+    { "source": "/robots.txt", "destination": "/api/index?route=robots.txt" },
+    { "source": "/sitemap.xml", "destination": "/api/index?route=sitemap.xml" },
+    { "source": "/", "destination": "/api/index?route=" },
+    { "source": "/explore", "destination": "/api/index?route=explore" },
+    { "source": "/about", "destination": "/api/index?route=about" },
+    { "source": "/q/:id", "destination": "/api/index?route=q/:id" }
+  ],
+  "functions": {
+    "api/index.js": { "includeFiles": "templates/**", "maxDuration": 10 }
+  }
+}

@@ -4,11 +4,16 @@
   "private": true,
   "type": "module",
   "description": "A tiny census taken by anyone. whichcountryareyou.com",
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node scripts/seed-demo.js",
     "seed:clear": "node scripts/seed-demo.js --clear"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0"
   }
 }
