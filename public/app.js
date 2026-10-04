@@ -575,7 +575,8 @@ async function questionPage(id) {
     after.querySelector('#share').addEventListener('click', () => {
       const mo = dd.mineOpt;
       const text = dd.id === 'country' && mo ? `I'm from ${mo.label}${mo.flag ? ' ' + flagEmoji(mo.flag) : ''}. Which country are you?` : mo ? `${dd.prompt} I said ${mo.emoji ? mo.emoji + ' ' : ''}${mo.label}. What would you say?` : `${dd.prompt} Vote and see how the world answers.`;
-      openShare({ title: dd.prompt, text, url: location.origin + '/q/' + dd.id, toast });
+      const cardData = mo ? { prompt: dd.prompt, answer: mo.label, emoji: mo.emoji, flag: mo.flag, kicker: dd.id === 'country' ? "I'm from" : 'I picked', pct: pctText(((dd.counts[dd.mine] || 0) / Math.max(1, dd.total)) * 100, dd.kind === 'countries'), total: dd.total } : null;
+      openShare({ title: dd.prompt, text, url: location.origin + '/q/' + dd.id, toast, card: cardData });
     });
   };
 

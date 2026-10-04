@@ -1,12 +1,13 @@
 // Share sheet: a friendly popup with the usual suspects.
 import { ICONS } from './icons.js';
 import { mark } from './me.js';
+import { renderCard } from './card.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const glyph = (name) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`;
 let open = null;
 
-export function openShare({ title, text, url, toast }) {
+export function openShare({ title, text, url, toast, card }) {
   closeShare();
   const enc = encodeURIComponent;
   const targets = [
@@ -27,6 +28,7 @@ export function openShare({ title, text, url, toast }) {
       <button class="modal-x" type="button" data-close aria-label="Close">&times;</button>
       <h3 class="modal-title">Share this</h3>
       <p class="modal-sub">${esc(text)}</p>
+      ${card ? '<div class="share-card-box" aria-live="polite"><div class="share-card-wait">Making your card…</div></div>' : ''}
       <div class="share-grid">
         ${targets.map((t) => `<button class="share-btn" type="button" data-t="${t.id}"><span class="share-ic" style="background:${t.bg}">${glyph(t.id)}</span>${t.label}</button>`).join('')}
         <button class="share-btn" type="button" data-t="mail"><span class="share-ic" style="background:#6B7A76"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg></span>Email</button>
@@ -41,6 +43,17 @@ export function openShare({ title, text, url, toast }) {
   requestAnimationFrame(() => el.classList.add('show'));
   el.querySelector('[data-t="copy"]').focus();
 
+  if (card) {
+    renderCard(card).then((blob) => {
+      if (!blob || open !== el) return;
+      const src = URL.createObjectURL(blob);
+      const file = new File([blob], 'which-country-are-you.png', { type: 'image/png' });
+      const canFile = navigator.canShare?.({ files: [file] });
+      el.querySelector('.share-card-box').innerHTML = `<img class="share-card" src="${src}" alt="Your share card"><div class="share-card-actions"><a class="btn alt mini" href="${src}" download="which-country-are-you.png" data-img="save">Save image</a>${canFile ? '<button class="btn mini" type="button" data-img="share">Share image</button>' : ''}</div>`;
+      el.querySelector('[data-img="share"]')?.addEventListener('click', async () => { try { await navigator.share({ files: [file], title, text }); mark('share'); } catch { /* dismissed */ } });
+      el.querySelector('[data-img="save"]')?.addEventListener('click', () => mark('share'));
+    });
+  }
   async function copy() {
     try { await navigator.clipboard.writeText(url); return true; } catch { input.select(); try { return document.execCommand('copy'); } catch { return false; } }
   }

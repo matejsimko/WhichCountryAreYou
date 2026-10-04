@@ -27,6 +27,10 @@ npm run seed:clear   # remove the demo votes
 
 `/map` and the landing page show an interactive world map: coloured by votes for any country question, smooth zoom to continents and countries, drag, pinch and Ctrl+scroll zoom, your own answer pinned. Outlines live in `public/map.json`, built from Natural Earth with `npm run build:map` (dev dependencies only; the result is committed). `public/map.js` is loaded only when the map scrolls into view.
 
+## Sharing
+
+The share popup (`public/share.js`) offers WhatsApp, X, Instagram (copies the link), Facebook, Telegram, Reddit, email and copy link. For answered questions it also draws a personal image card in the browser (`public/card.js`, 1080x1350) that can be saved or, on phones, shared directly. Link previews use `public/og.png`, drawn by `npm run build:og -- path/to/Fredoka.ttf`.
+
 ## Cities, states and regions
 
 After choosing a country you can pick where in it you are from. Every country has its own question `place-xx` (for example `/q/place-us`), built on demand from `public/places.json`: the biggest cities, capitals, and states or regions where they matter (all 50 US states plus DC). Data comes from Natural Earth (public domain), built with `npm run build:places -- path/to/ne_10m_populated_places_simple.geojson`. On the map, zooming to a country shows its cities as dots sized by votes, with name tags for the main ones, and you can vote right from the map.

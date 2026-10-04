@@ -508,3 +508,10 @@ span.rain { box-shadow: none; }
 .btn.mini { padding: 8px 14px; font-size: .85rem; box-shadow: 0 3px 0 var(--teal-deep); white-space: nowrap; }
 .map-fine { margin: 12px 0 0; font-size: .9rem; }
 .map-fine a { color: var(--muted); }
+
+.share-card-box { margin: 0 0 18px; }
+.share-card-wait { display: grid; place-items: center; aspect-ratio: 4 / 5; max-height: 38vh; border-radius: 16px; background: var(--soft); color: var(--muted); font-size: .9rem; }
+.share-card { display: block; width: auto; max-width: 100%; max-height: 38vh; margin: 0 auto; border-radius: 16px; box-shadow: 0 10px 24px -10px rgba(40, 30, 10, .5); }
+.share-card-actions { display: flex; justify-content: center; gap: 10px; margin-top: 12px; }
+.share-card-actions .btn.mini { text-decoration: none; box-shadow: 0 3px 0 var(--teal-deep); }
+.share-card-actions .btn.alt.mini { box-shadow: 0 3px 0 var(--line), 0 0 0 2px var(--line) inset; }
