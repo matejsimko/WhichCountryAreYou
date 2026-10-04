@@ -26,7 +26,6 @@ export async function mountMap(el, ctx, opts = {}) {
       ${mapQs.length > 1 ? `<div class="chips map-qs" role="group" aria-label="Question">${mapQs.map((q) => `<button class="chip" type="button" data-q="${esc(q.id)}" aria-pressed="${q.id === qid}">${esc(q.prompt)}</button>`).join('')}</div>` : ''}
     </div>
     <div class="map-stage">
-      <div class="map-sky" aria-hidden="true"><i class="map-cloud c1"></i><i class="map-cloud c2"></i><i class="map-plane"></i></div>
       <svg class="map-svg" viewBox="${world.join(' ')}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <g class="lands">${data.countries.map((c) => `<path class="land" data-c="${c.c}" d="${c.d}" style="--x:${(c.p[0] / 1000).toFixed(2)}"/>`).join('')}</g>
         <g class="map-pin" hidden><g class="pin-bob"><circle class="pin-ring" r="10"/><path d="M0 0C-6-8-12-13-12-20a12 12 0 0 1 24 0C12-13 6-8 0 0Z" fill="#EE5A36" stroke="#fff" stroke-width="2"/><circle cy="-20" r="4.5" fill="#fff"/></g></g>
@@ -49,6 +48,7 @@ export async function mountMap(el, ctx, opts = {}) {
   const landEl = new Map([...svg.querySelectorAll('.land')].map((p) => [p.dataset.c, p]));
   landEl.forEach((p) => p.style.setProperty('--d', `${(Number(p.style.getPropertyValue('--x')) * 0.9).toFixed(2)}s`));
   requestAnimationFrame(() => stage.classList.add('is-in'));
+  setTimeout(() => stage.classList.add('settled'), 2200); // intro is over: drop the per-country animations to save memory
 
   // ---------- data -> colour
   let counts = {}, total = 0, max = 0, ranks = new Map();

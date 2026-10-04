@@ -2,6 +2,7 @@
 import { getMe, mark, startTracking, setUnlockHandler, evaluate, ACHIEVEMENTS, level, fmtTime, streak, EGGS_TOTAL } from './me.js';
 import { openShare } from './share.js';
 import { initEggs } from './eggs.js';
+import { sfx, initSfx } from './sfx.js';
 
 const app = document.getElementById('app');
 const root = document.documentElement;
@@ -105,7 +106,29 @@ function skySVG() {
   </svg>`;
 }
 
-// layered torn-paper hills with trees, flagpoles and a pin
+
+// Pinny, the paper map pin. Moods are cycled by clicking (see eggs.js); CSS does the rest.
+const pinny = (x, y) => `<g transform="translate(${x} ${y}) scale(1.45)" class="pinny" data-mood="happy" data-i="0" tabindex="0" role="img" aria-label="Pinny the map pin. Click for a new look.">
+  <ellipse cy="3" rx="30" ry="6" fill="#0A5F55" opacity=".3"/>
+  <g class="p-all"><g class="p-bob">
+    <rect x="22" y="-86" width="22" height="38" rx="9" fill="#0F8A7A" stroke="#0A5F55" stroke-width="2"/>
+    <ellipse cx="-13" cy="-4" rx="11" ry="6.5" fill="#3A2A22"/><ellipse cx="13" cy="-4" rx="11" ry="6.5" fill="#3A2A22"/>
+    <g class="p-arm l"><path d="M-33-54Q-48-50-50-38" fill="none" stroke="#C6431F" stroke-width="7" stroke-linecap="round"/></g>
+    <path transform="translate(-40.8 -105) scale(3.4)" d="M12 1C6.2 1 1.5 5.7 1.5 11.5 1.5 19 12 28.5 12 28.5S22.5 19 22.5 11.5C22.5 5.7 17.8 1 12 1Z" fill="#EE5A36" style="filter:drop-shadow(0 3px 2px rgba(80,20,0,.3))"/>
+    <g class="p-arm r"><path d="M33-54Q50-58 52-74" fill="none" stroke="#C6431F" stroke-width="7" stroke-linecap="round"/></g>
+    <circle cy="-66" r="19" fill="#FFFCF5"/>
+    <circle cx="-12" cy="-58" r="3.6" fill="#FF8FA8" opacity=".6"/><circle cx="12" cy="-58" r="3.6" fill="#FF8FA8" opacity=".6"/>
+    <g class="p-eyes"><g class="p-eye"><circle cx="-7" cy="-70" r="4.4" fill="#243230"/><circle cx="-8.4" cy="-71.4" r="1.5" fill="#fff"/></g><g class="p-eye"><circle cx="7" cy="-70" r="4.4" fill="#243230"/><circle cx="5.6" cy="-71.4" r="1.5" fill="#fff"/></g></g>
+    <g class="p-closed"><path d="M-12-70q5 4 10 0M2-70q5 4 10 0" fill="none" stroke="#243230" stroke-width="2.5" stroke-linecap="round"/></g>
+    <path class="m-smile" d="M-7-59Q0-52 7-59" fill="none" stroke="#243230" stroke-width="2.8" stroke-linecap="round"/>
+    <ellipse class="m-open" cy="-56" rx="5" ry="6" fill="#243230"/>
+    <g class="p-cool"><rect x="-16" y="-77" width="14" height="10" rx="4" fill="#111"/><rect x="2" y="-77" width="14" height="10" rx="4" fill="#111"/><path d="M-2-73h4" stroke="#111" stroke-width="2.5"/><path d="M-12-74l4-1" stroke="#fff" stroke-width="1.6" opacity=".6"/></g>
+    <g class="p-party"><path d="M-13-82 0-120 13-82Z" fill="#FFC233" stroke="#C98A00" stroke-width="1.5"/><path d="M-9-92 8-96M-6-104 5-108" stroke="#EE5A36" stroke-width="3.5" stroke-linecap="round"/><circle cy="-121" r="5" fill="#8C55D9"/></g>
+    <g class="p-zzz"><text x="22" y="-100" font-family="Fredoka, sans-serif" font-weight="700" font-size="16" fill="#243230">z</text><text x="34" y="-114" font-family="Fredoka, sans-serif" font-weight="700" font-size="20" fill="#243230">Z</text></g>
+  </g></g>
+</g>`;
+
+// layered torn-paper hills with trees, flagpoles and Pinny
 function hillsSVG() {
   const W = 1440, H = 330;
   const back = makeHill(W, H, 96, 22, 1.3, 11);
@@ -123,7 +146,7 @@ function hillsSVG() {
     ${pole(1000, mid.y(1000) + 4, 'br', 0)}${pole(210, mid.y(210) + 4, 'jp', 0.7)}
     ${layer(front, '#1BA88F')}${frontTrees}
     ${pole(690, front.y(690) + 4, 'sk', 0.3)}${pole(1190, front.y(1190) + 4, 'ke', 1.1)}
-    <g transform="translate(${px} ${front.y(px) + 6})"><ellipse cy="2" rx="22" ry="5" fill="#0A5F55" opacity=".3"/><g transform="translate(0 -4)"><g class="sway"><g transform="translate(-24 -92) scale(2)"><path d="M12 1C6.2 1 1.5 5.7 1.5 11.5 1.5 19 12 28.5 12 28.5S22.5 19 22.5 11.5C22.5 5.7 17.8 1 12 1Z" fill="#EE5A36" style="filter:drop-shadow(0 3px 2px rgba(80,20,0,.3))"/><circle cx="12" cy="11.5" r="4.4" fill="#FFFCF5"/></g></g></g></g>
+    ${pinny(px, front.y(px) + 8)}
     ${layer(fore, '#FBF3E4')}
   </svg>`;
 }
@@ -332,6 +355,7 @@ function mountBlock(el, d, ctx = {}) {
       sort = '';
       reward = d.options.find((o) => o.id === optionId)?.reward || null;
       draw();
+      sfx.vote();
       if (ev) confetti(ev.clientX, ev.clientY);
       if (changed) mark('changed');
       ctx.onVoted?.(d);
@@ -399,6 +423,7 @@ function mountFinder(el, d) {
       const r = await api('/vote', { questionId: 'country', optionId: id });
       detailCache.set('country', r);
       listCache = null;
+      sfx.vote();
       const rect = input.getBoundingClientRect();
       confetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
       go('/q/country');
@@ -557,17 +582,22 @@ async function questionPage(id) {
 
 function about() {
   setHue(178);
-  app.innerHTML = `<div class="view wrap"><div class="page-head"><p class="eyebrow">About</p><h1 class="display">A tiny census, taken by anyone.</h1></div>
+  app.innerHTML = `<div class="view wrap"><div class="page-head"><p class="eyebrow">About</p><h1 class="display">A small experiment with the whole world.</h1></div>
   <div class="prose">
-    <p>Which Country Are You is a place to answer simple questions and see how everyone else answered. Where you're from, what you believe, cats or dogs, coffee or tea. Nothing to sign up for and nothing to win.</p>
+    <p>Which Country Are You started as a question: <em>how many different people can we get to answer the same simple questions?</em> Where are you from, cats or dogs, coffee or tea. No accounts, no sign-up, nothing to win. Just a place where anyone can drop in, vote, and see the internet answer back.</p>
+    <h2>How it began</h2>
+    <p>The domain was too good to leave alone. The idea was to start with one tiny question, which country are you, and see what happens when people send it to friends. If it spreads the way people really live, the votes should line up with where the world's population actually is. Lots of India, lots of the US, Brazil, Nigeria, Indonesia. Then the surprises: the small countries that punch above their weight because one person told the whole group chat.</p>
+    <h2>What it could turn into</h2>
+    <p>Right now you pick a country and answer a few questions. Next: pick your city or state, and filter everything by where people are from. How do Slovaks vote on coffee or tea compared with people from Brazil? What does Texas think about pineapple on pizza? The more people who join, the better those answers get.</p>
     <h2>How voting works</h2>
     <p>Each device gets one vote per question. You can change your answer any time. To keep the numbers from being flooded, a single network can only add a handful of new devices per question each day.</p>
     <h2>What we keep</h2>
-    <p>A random ID in a cookie on your device, and your answers. We also keep a one-way hash of your network address that changes every day, so it can't be traced back to you or used to follow you around. No names, no emails, no accounts.</p>
+    <p>A random ID in a cookie on your device, and your answers. We also keep a one-way hash of your network address that changes every day, so it can't be traced back to you or used to follow you around. No names, no emails, no accounts. Your passport (badges, time here) lives in your browser only.</p>
     <h2>Take it with a grain of salt</h2>
     <p>Anyone can vote and nobody is verified, so this is a game and not a survey. It's still fun to watch the bars move.</p>
-    <h2>Flags</h2>
-    <p>Flag artwork comes from the open-source flag-icons project (MIT). Where a language or cuisine gets a flag, it's just the best-known country for it, not a claim about who owns it.</p>
+    <h2>Flags and credits</h2>
+    <p>Flag artwork comes from the open-source flag-icons project (MIT). Map outlines come from Natural Earth (public domain). Social icons come from Simple Icons (CC0). Where a language or cuisine gets a flag, it's just the best-known country for it, not a claim about who owns it.</p>
+    <p>Pinny, the pin on the hill, says hi. Try clicking things. Some of them do something.</p>
   </div></div>`;
 }
 
@@ -585,6 +615,7 @@ function checkAchievements() {
   const { fresh } = evaluate(mineMap(), listCache.questions.length);
   if (!fresh.length) return;
   const lines = fresh.length > 2 ? [`🏅 ${fresh.length} new badges! Open your passport.`] : fresh.map((b) => `${b.e} Badge unlocked: ${b.n}`);
+  sfx.badge();
   for (const line of lines) toastQueue = toastQueue.then(() => { toast(line); confetti(innerWidth / 2, innerHeight * 0.7); return new Promise((r) => setTimeout(r, 3300)); });
 }
 const afterVote = () => checkAchievements();
@@ -674,5 +705,6 @@ document.addEventListener('click', (e) => {
 window.addEventListener('popstate', render);
 initFooter();
 startTracking();
+initSfx();
 initEggs({ toast, confetti });
 render();

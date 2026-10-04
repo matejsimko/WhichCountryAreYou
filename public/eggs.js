@@ -1,5 +1,7 @@
 // Easter eggs. There are 8. Badge names stay hidden on the profile until you find them.
-import { mark } from './me.js';
+import { mark as markRaw } from './me.js';
+import { sfx } from './sfx.js';
+const mark = (k, v) => { markRaw(k, v); if (k === 'egg') sfx.egg(); };
 
 const FLAGS = ['sk', 'br', 'jp', 'it', 'in', 'ke', 'ca', 'au', 'fr', 'ng', 'ar', 'de', 'gb', 'us', 'kr', 'za', 'pl', 'cz', 'gr', 'pt'];
 const WORDS = {
@@ -40,7 +42,7 @@ export function initEggs({ toast, confetti }) {
   });
 
   // 3 to 7: things to poke
-  let pinClicks = [], pennants = new Set(), flagsPoked = new Set();
+  let pinnyClicks = 0, pinClicks = [], pennants = new Set(), flagsPoked = new Set();
   const regions = new Intl.DisplayNames(['en'], { type: 'region' });
   document.addEventListener('click', (e) => {
     const t = e.target;
@@ -78,10 +80,16 @@ export function initEggs({ toast, confetti }) {
         if (flagsPoked.size >= 8) { flagsPoked.clear(); rain(FLAGS.slice(0, 8), 30, true); toast('🚩 You poked eight flags. Respect.'); mark('egg', 'flagrail'); }
       }
     }
-    const plane = t.closest?.('.map-plane');
-    if (plane) {
-      plane.classList.remove('loop'); void plane.offsetWidth; plane.classList.add('loop');
-      toast('✈️ Barrel roll!'); mark('egg', 'plane');
+    const pinny = t.closest?.('.pinny');
+    if (pinny) {
+      const moods = ['happy', 'cool', 'party', 'sleepy', 'wow'];
+      const i = (moods.indexOf(pinny.dataset.mood) + 1) % moods.length;
+      pinny.dataset.mood = moods[i]; pinny.dataset.i = i;
+      pinny.classList.remove('hop'); void pinny.getBoundingClientRect(); pinny.classList.add('hop');
+      sfx.squeak(i + 2);
+      if (moods[i] === 'party') { const r = pinny.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top + 20); }
+      pinnyClicks++;
+      if (pinnyClicks === 7) { toast('🤝 Pinny likes you. A lot.'); mark('egg', 'pinny'); }
     }
   });
 
