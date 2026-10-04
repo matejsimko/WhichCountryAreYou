@@ -162,6 +162,8 @@ async function metaFor(pathname) {
     }
   } else if (/^\/explore\/?$/.test(pathname)) {
     title = 'Every question · Which Country Are You?';
+  } else if (/^\/map\/?$/.test(pathname)) {
+    title = 'The map · Which Country Are You?';
   } else if (/^\/about\/?$/.test(pathname)) {
     title = 'About · Which Country Are You?';
   }
@@ -201,14 +203,14 @@ export async function handle(req, res) {
       return res.end(`User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
     }
     if (pathname === '/sitemap.xml') {
-      const urls = ['/', '/explore', '/about', ...QUESTIONS.map((q) => `/q/${q.id}`)];
+      const urls = ['/', '/explore', '/map', '/about', ...QUESTIONS.map((q) => `/q/${q.id}`)];
       res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8' });
       return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${SITE_URL}${u}</loc></url>`).join('')}</urlset>`);
     }
 
     const m = /^\/q\/([a-z0-9-]+)\/?$/.exec(pathname);
     if (m && !questionById.has(m[1])) return await sendShell(res, pathname, 404);
-    if (pathname === '/' || m || /^\/(explore|about)\/?$/.test(pathname)) return await sendShell(res, pathname);
+    if (pathname === '/' || m || /^\/(explore|about|map)\/?$/.test(pathname)) return await sendShell(res, pathname);
     return await sendShell(res, pathname, 404);
   } catch (err) {
     console.error(err);

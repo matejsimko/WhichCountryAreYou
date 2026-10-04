@@ -23,6 +23,10 @@ npm run seed:clear   # remove the demo votes
 | `public/app.js` | The whole frontend. |
 | `public/styles.css` | All styling. One `--h` hue variable drives the colour of everything. |
 
+## The map
+
+`/map` and the landing page show an interactive world map: coloured by votes for any country question, smooth zoom to continents and countries, drag, pinch and Ctrl+scroll zoom, your own answer pinned. Outlines live in `public/map.json`, built from Natural Earth with `npm run build:map` (dev dependencies only; the result is committed). `public/map.js` is loaded only when the map scrolls into view.
+
 ## Look and feel
 
 Cut-paper world, light only (no dark mode, on purpose). Cream paper with a map-doodle backdrop (`public/doodles.svg`), torn-edge hills and a swinging bunting of flags in the hero (drawn in `public/app.js`: `skySVG`, `hillsSVG`, `buildBunting`), chunky paper strips for answers, confetti on every vote.

@@ -11,9 +11,17 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node scripts/seed-demo.js",
-    "seed:clear": "node scripts/seed-demo.js --clear"
+    "seed:clear": "node scripts/seed-demo.js --clear",
+    "build:map": "node scripts/build-map.js"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0"
+  },
+  "devDependencies": {
+    "countries-list": "^3.4.1",
+    "d3-geo": "^3.1.1",
+    "i18n-iso-countries": "^7.14.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
   }
 }

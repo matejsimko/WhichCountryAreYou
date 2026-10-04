@@ -390,6 +390,10 @@ async function home() {
     </section>
     <div class="wrap">
       ${top.length ? `<section class="section" aria-labelledby="world"><div class="section-head"><h2 id="world">Who's here so far</h2><a class="link" href="/q/country" data-link>See all countries</a></div><div class="sticker-row">${top.map((o, i) => `<a class="sticker" style="--i:${i}" href="/q/country" data-link>${flagImg(flagOf(o))}<span>${esc(o.label)}</span><small class="num">${pctText((o.c / country.total) * 100, true)}</small></a>`).join('')}</div></section>` : ''}
+      <section class="section" aria-labelledby="mapt">
+        <div class="section-head"><h2 id="mapt">Watch the world fill in</h2><a class="link" href="/map" data-link>Open the full map</a></div>
+        <div id="map-slot" class="map-slot"></div>
+      </section>
       <section class="section" aria-labelledby="quick">
         <div class="section-head"><h2 id="quick">While you're here</h2><a class="link" href="/explore" data-link>All ${s.questions} questions</a></div>
         <div class="grid">${feat.map((d) => `<article class="card paper hued" style="--h:${d.hue}"><span class="card-tag">${esc(catLabel(list, d.category))}</span><h3 class="card-q"><a href="/q/${esc(d.id)}" data-link>${esc(d.prompt)}</a></h3><div data-block="${esc(d.id)}"></div></article>`).join('')}</div>
@@ -401,6 +405,27 @@ async function home() {
   mountFinder(app.querySelector('#finder-wrap'), country);
   app.querySelector('#finder-wrap').insertAdjacentHTML('beforeend', `<p class="hero-meta">${s.answers ? `<b class="num">${fmt(s.answers)}</b> answers · <b class="num">${s.countries}</b> countries so far · <b>${s.questions}</b> questions` : 'No answers yet. Be the first.'}</p>`);
   feat.forEach((d) => mountBlock(app.querySelector(`[data-block="${d.id}"]`), d));
+  lazyMap(app.querySelector('#map-slot'), {});
+}
+
+// the interactive map is loaded only when someone gets near it
+const mapCtx = () => ({ esc, fmt, pctText, flagImg, go, getList, getDetail });
+function lazyMap(slot, opts) {
+  const start = async () => {
+    try { const { mountMap } = await import('/map.js'); await mountMap(slot, mapCtx(), opts); }
+    catch (err) { console.error(err); slot.innerHTML = '<p class="empty">The map could not load. Try reloading.</p>'; }
+  };
+  if (!('IntersectionObserver' in window)) return start();
+  const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { io.disconnect(); start(); } }, { rootMargin: '500px 0px' });
+  io.observe(slot);
+}
+
+async function mapPage() {
+  setHue(178);
+  app.innerHTML = `<div class="view wrap map-page"><div class="page-head"><p class="eyebrow">The map</p><h1 class="display">The world, answered.</h1><p>Zoom in on a continent or tap a country to see how it voted.</p></div><div id="map-slot" class="map-slot"></div></div>`;
+  const q = new URLSearchParams(location.search).get('q');
+  await new Promise((r) => requestAnimationFrame(r));
+  lazyMap(app.querySelector('#map-slot'), { wheel: true, question: q });
 }
 
 async function explore() {
@@ -502,6 +527,7 @@ function notFound() {
 const routes = [
   [/^\/$/, () => home()],
   [/^\/explore\/?$/, () => explore()],
+  [/^\/map\/?$/, () => mapPage()],
   [/^\/q\/([a-z0-9-]+)\/?$/, (m) => questionPage(m[1])],
   [/^\/about\/?$/, () => about()],
 ];

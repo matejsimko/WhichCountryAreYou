@@ -6,6 +6,7 @@
     { "source": "/sitemap.xml", "destination": "/api/index?route=sitemap.xml" },
     { "source": "/", "destination": "/api/index?route=" },
     { "source": "/explore", "destination": "/api/index?route=explore" },
+    { "source": "/map", "destination": "/api/index?route=map" },
     { "source": "/about", "destination": "/api/index?route=about" },
     { "source": "/q/:id", "destination": "/api/index?route=q/:id" }
   ],
