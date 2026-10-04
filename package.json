@@ -13,12 +13,14 @@
     "seed": "node scripts/seed-demo.js",
     "seed:clear": "node scripts/seed-demo.js --clear",
     "build:map": "node scripts/build-map.js",
-    "build:places": "node scripts/build-places.js"
+    "build:places": "node scripts/build-places.js",
+    "build:og": "node scripts/build-og.js"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.10",
     "countries-list": "^3.4.1",
     "d3-geo": "^3.1.1",
     "i18n-iso-countries": "^7.14.0",
