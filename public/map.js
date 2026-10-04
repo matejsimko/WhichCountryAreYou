@@ -125,6 +125,7 @@ export async function mountMap(el, ctx, opts = {}) {
   }
   function setView(k) {
     view = k;
+    if (VIEW_CONTINENT[k]) ctx.track?.('zoom', k);
     if (k !== 'country') selectCountry(null, false);
     el.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.view === k));
     if (VIEW_CONTINENT[k]) topCont = VIEW_CONTINENT[k]; else if (k === 'world') topCont = null;

@@ -112,6 +112,31 @@ export const QUESTIONS = [
   duel('save-or-spend', 'Save or spend?', 'Save', 'Spend', 120),
 ];
 
+// Emoji shown next to options. Keyed by question id, then option id.
+const EMOJI = {
+  'coffee-or-tea': { coffee: '☕', tea: '🍵' },
+  'mountains-or-beach': { mountains: '⛰️', beach: '🏖️' },
+  'morning-or-night': { 'morning-person': '🌅', 'night-owl': '🦉' },
+  'sweet-or-salty': { sweet: '🍬', salty: '🧂' },
+  'pineapple-on-pizza': { 'yes-always': '🍍', never: '🙅' },
+  'cats-or-dogs': { cats: '🐱', dogs: '🐶' },
+  'city-or-town': { 'big-city': '🏙️', 'small-town': '🏡' },
+  'fly-or-invisible': { fly: '🦅', invisible: '👻' },
+  'past-or-future': { 'the-past': '🦖', 'the-future': '🚀' },
+  'book-or-movie': { book: '📖', movie: '🎬' },
+  'call-or-text': { call: '📞', text: '💬' },
+  'hot-or-cold': { hot: '🔥', cold: '❄️' },
+  'save-or-spend': { save: '🏦', spend: '🛍️' },
+  season: { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' },
+  'favorite-animal': { dog: '🐶', cat: '🐱', horse: '🐴', dolphin: '🐬', elephant: '🐘', wolf: '🐺', lion: '🦁', owl: '🦉', penguin: '🐧', panda: '🐼', fox: '🦊', octopus: '🐙', eagle: '🦅', rabbit: '🐰', 'something-else': '✨' },
+  religion: { christian: '✝️', muslim: '☪️', hindu: '🕉️', buddhist: '☸️', jewish: '✡️', sikh: '🪯', 'folk-or-traditional': '🌿', 'spiritual-not-religious': '✨', agnostic: '🤷', atheist: '⚛️', other: '🌍' },
+  age: { 'under-18': '🧒', '18-to-24': '🎓', '25-to-34': '💼', '35-to-44': '🏠', '45-to-54': '🌳', '55-to-64': '🌅', '65-and-over': '🧓' },
+  sleep: { 'under-5-hours': '😵', '5-to-6-hours': '🥱', '7-to-8-hours': '😴', '9-hours-or-more': '🛌' },
+  cuisine: { 'something-else': '🍽️' },
+  language: { 'another-language': '🗣️' },
+};
+for (const q of QUESTIONS) for (const o of q.options) if (EMOJI[q.id]?.[o.id]) o.emoji = EMOJI[q.id][o.id];
+
 export const questionById = new Map(QUESTIONS.map((q) => [q.id, q]));
 for (const q of QUESTIONS) q.optionIds = new Set(q.options.map((o) => o.id));
 

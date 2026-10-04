@@ -1,9 +1,13 @@
 // Which Country Are You? — tiny client-side app, no framework, no build step.
+import { getMe, mark, startTracking, setUnlockHandler, evaluate, ACHIEVEMENTS, level, fmtTime, streak, EGGS_TOTAL } from './me.js';
+import { openShare } from './share.js';
+import { initEggs } from './eggs.js';
 
 const app = document.getElementById('app');
 const root = document.documentElement;
 
 // ---------- helpers
+const flagEmoji = (c) => String.fromCodePoint(...[...c.toUpperCase()].map((ch) => 0x1f1a5 + ch.charCodeAt(0)));
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => n.toLocaleString('en-US');
 const norm = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
@@ -113,7 +117,7 @@ function hillsSVG() {
   const px = 420;
   const rays = Array.from({ length: 16 }, (_, i) => `<path d="M-9-88 0-120 9-88Z" transform="rotate(${i * 22.5})"/>`).join('');
   return `<svg class="hills" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
-    <g transform="translate(1180 70)"><g class="spin" fill="#FFC233" opacity=".55">${rays}</g><circle r="66" fill="#FFC233" style="filter:drop-shadow(0 6px 6px rgba(120,70,0,.25))"/><circle r="50" fill="#FFD966"/></g>
+    <g transform="translate(1180 70)" class="sun"><g class="spin" fill="#FFC233" opacity=".55">${rays}</g><circle r="66" fill="#FFC233" style="filter:drop-shadow(0 6px 6px rgba(120,70,0,.25))"/><circle r="50" fill="#FFD966"/><g class="shades"><rect x="-40" y="-14" width="32" height="24" rx="9" fill="#243230"/><rect x="8" y="-14" width="32" height="24" rx="9" fill="#243230"/><path d="M-8-6H8" stroke="#243230" stroke-width="4"/></g></g>
     ${layer(back, '#C4E9DC', false)}
     ${layer(mid, '#7AD2B4')}${midTrees}
     ${pole(1000, mid.y(1000) + 4, 'br', 0)}${pole(210, mid.y(210) + 4, 'jp', 0.7)}
@@ -181,45 +185,85 @@ function bindReward(el, r) {
 }
 
 // ---------- the vote block: a question's options that turn into its results
+const SORTS = {
+  votes: 'Most votes', fewest: 'Fewest', az: 'A to Z', za: 'Z to A',
+};
 function mountBlock(el, d, ctx = {}) {
   const isDuel = d.options.length === 2;
   const isCountries = d.kind === 'countries';
-  const searchable = isCountries || d.options.length > 20;
-  const sortable = d.options.length > 8;
-  const precise = isCountries;
+  const rolling = d.options.length > 14; // long lists live in a scrolling roller with filters
+  const CHUNK = 30;
   let mode = d.mine ? 'results' : 'vote';
   let filter = '';
+  let sort = '';
+  let shown = CHUNK;
   let busy = false;
   let reward = null;
 
   el.classList.add('block');
-  el.innerHTML = `${searchable ? '<input class="block-search" id="search-' + esc(d.id) + '" type="search" placeholder="Search" autocomplete="off" aria-label="Search options">' : ''}<div class="block-reward"></div><div class="block-body"></div><div class="block-foot"></div>`;
+  el.innerHTML = `${rolling ? `<div class="block-tools"><input class="block-search" id="search-${esc(d.id)}" type="search" placeholder="Search ${isCountries ? 'countries' : 'options'}" autocomplete="off" aria-label="Search"><div class="chips sortbar" role="group" aria-label="Sort"></div></div>` : ''}<div class="block-reward"></div><div class="block-body"></div><div class="block-foot"></div>`;
   const body = el.querySelector('.block-body');
   const foot = el.querySelector('.block-foot');
   const rewardEl = el.querySelector('.block-reward');
+  const sortbar = el.querySelector('.sortbar');
+
+  const precise = isCountries;
+  let view = []; // the rows the roller can show, in order
+  let ranks = new Map();
+  let total = 0, max = 0, showRes = false;
+
+  const isLead = (o) => showRes && max > 0 && o.c === max;
+  const mine = (o) => o.id === d.mine;
+  function rowHTML(o) {
+    const p = total ? (o.c / total) * 100 : 0;
+    const w = showRes && max ? (o.c / max) * 100 : 0;
+    const fl = flagOf(o);
+    return `<li><button type="button" class="opt${isLead(o) ? ' is-lead' : ''}${mine(o) ? ' is-mine' : ''}" data-opt="${esc(o.id)}" style="--w:${w}" aria-pressed="${mine(o)}">
+      <i class="opt-fill"></i>
+      ${showRes && sortedByVotes() ? `<span class="opt-rank">${ranks.get(o.id)}</span>` : ''}
+      ${fl ? flagImg(fl) : ''}${o.swatch ? `<span class="opt-swatch" style="background:${esc(o.swatch)}"></span>` : ''}${o.emoji ? `<span class="opt-emoji" aria-hidden="true">${o.emoji}</span>` : ''}
+      <span class="opt-label">${esc(o.label)}${mine(o) ? '<span class="tag">you</span>' : ''}</span>
+      ${showRes ? `<span class="opt-meta"><b>${pctText(p, precise)}</b><small>${fmt(o.c)}</small></span>` : ''}
+    </button></li>`;
+  }
+  const curSort = () => sort || (showRes && d.options.length > 8 ? 'votes' : d.options.length > 8 ? 'az' : '');
+  const sortedByVotes = () => curSort() === 'votes' || curSort() === 'fewest';
 
   function draw() {
-    const showRes = mode === 'results';
-    const total = Object.values(d.counts).reduce((a, b) => a + b, 0);
+    showRes = mode === 'results';
+    total = Object.values(d.counts).reduce((a, b) => a + b, 0);
     d.total = total;
     let opts = d.options.map((o) => ({ ...o, c: d.counts[o.id] || 0 }));
-    const sorted = showRes && sortable;
-    if (sorted) opts.sort((a, b) => b.c - a.c || a.label.localeCompare(b.label));
-    const rank = new Map(opts.map((o, i) => [o.id, i + 1]));
-    const max = Math.max(0, ...opts.map((o) => o.c));
+    const byVotes = [...opts].sort((a, b) => b.c - a.c || a.label.localeCompare(b.label));
+    ranks = new Map(byVotes.map((o, i) => [o.id, i + 1]));
+    max = byVotes[0]?.c || 0;
+
+    // sort chips: counts are hidden until you vote, so only alphabetical sorts exist before that
+    if (rolling) {
+      const avail = showRes ? ['votes', 'fewest', 'az', 'za'] : ['az', 'za'];
+      if (!avail.includes(sort)) sort = '';
+      const cur = curSort();
+      sortbar.innerHTML = avail.map((k) => `<button class="chip" type="button" data-sort="${k}" aria-pressed="${k === cur}">${SORTS[k]}</button>`).join('');
+    }
+    const s = curSort();
+    if (s === 'votes') opts = byVotes;
+    else if (s === 'fewest') opts = [...byVotes].reverse();
+    else if (s === 'za') opts.sort((a, b) => b.label.localeCompare(a.label));
+    else if (s === 'az') opts.sort((a, b) => a.label.localeCompare(b.label));
+
     let podium = '';
     if (filter) {
       const f = norm(filter);
       opts = opts.filter((o) => norm(o.label).includes(f) || (o.alt && norm(o.alt).includes(f)) || (o.code && norm(o.code) === f));
     } else if (showRes && isCountries && max > 0) {
-      const top = opts.slice(0, 3).filter((o) => o.c > 0);
+      const top = byVotes.slice(0, 3).filter((o) => o.c > 0);
       if (top.length === 3) {
         podium = `<div class="podium">${top.map((o, i) => `<div class="pod${o.id === d.mine ? ' is-mine' : ''}">${flagImg(flagOf(o))}<span class="pod-medal">${i + 1}</span><span class="pod-name">${esc(o.label)}</span><span class="pod-pct">${pctText((o.c / total) * 100, true)}</span><span class="pod-n">${fmt(o.c)}</span></div>`).join('')}</div>`;
-        opts = opts.slice(3);
+        if (s === 'votes') opts = opts.slice(3);
       }
     }
-    const isLead = (o) => showRes && max > 0 && o.c === max;
-    const mine = (o) => o.id === d.mine;
+    view = opts;
+    shown = CHUNK;
 
     el.className = `block ${ctx.className || ''} is-${showRes ? 'results' : 'vote'}`;
 
@@ -228,6 +272,7 @@ function mountBlock(el, d, ctx = {}) {
         const p = total ? (o.c / total) * 100 : 50;
         const g = showRes ? 28 + p * 0.44 : 50;
         return `<button type="button" class="duel-opt hued${isLead(o) ? ' is-lead' : ''}${mine(o) ? ' is-mine' : ''}" data-opt="${esc(o.id)}" style="--g:${g};--h:${(d.hue + i * 80) % 360}" aria-pressed="${mine(o)}">
+          ${o.emoji ? `<span class="duel-emoji" aria-hidden="true">${o.emoji}</span>` : ''}
           <span class="duel-label">${esc(o.label)}</span>
           ${showRes ? `<span class="duel-nums"><span class="duel-pct">${pctText(p)}</span><span class="duel-n">${fmt(o.c)}</span></span>` : ''}
           ${mine(o) ? '<span class="tag">you</span>' : ''}
@@ -235,19 +280,22 @@ function mountBlock(el, d, ctx = {}) {
       }).join('')}</div>`;
     } else if (!opts.length && !podium) {
       body.innerHTML = '<p class="empty">Nothing matches that.</p>';
+    } else if (rolling) {
+      body.innerHTML = `${podium}<div class="roller" tabindex="0" role="region" aria-label="${esc(d.prompt)} options"><ul class="opts">${opts.slice(0, CHUNK).map(rowHTML).join('')}</ul></div><p class="roller-meta"></p>`;
+      const roller = body.querySelector('.roller');
+      const list = roller.querySelector('.opts');
+      const meta = body.querySelector('.roller-meta');
+      const updateMeta = () => { meta.textContent = opts.length > CHUNK ? `Showing ${Math.min(shown, opts.length)} of ${opts.length}. Scroll for more.` : `${opts.length} ${opts.length === 1 ? 'result' : 'results'}`; };
+      updateMeta();
+      roller.addEventListener('scroll', () => {
+        if (shown < opts.length && roller.scrollTop + roller.clientHeight > roller.scrollHeight - 240) {
+          list.insertAdjacentHTML('beforeend', opts.slice(shown, shown + CHUNK).map(rowHTML).join(''));
+          shown += CHUNK;
+          updateMeta();
+        }
+      }, { passive: true });
     } else {
-      body.innerHTML = `${podium}<ul class="opts">${opts.map((o) => {
-        const p = total ? (o.c / total) * 100 : 0;
-        const w = showRes && max ? (o.c / max) * 100 : 0;
-        const fl = flagOf(o);
-        return `<li><button type="button" class="opt${isLead(o) ? ' is-lead' : ''}${mine(o) ? ' is-mine' : ''}" data-opt="${esc(o.id)}" style="--w:${w}" aria-pressed="${mine(o)}">
-          <i class="opt-fill"></i>
-          ${sorted && max > 0 ? `<span class="opt-rank">${rank.get(o.id)}</span>` : ''}
-          ${fl ? flagImg(fl) : ''}${o.swatch ? `<span class="opt-swatch" style="background:${esc(o.swatch)}"></span>` : ''}
-          <span class="opt-label">${esc(o.label)}${mine(o) ? '<span class="tag">you</span>' : ''}</span>
-          ${showRes ? `<span class="opt-meta"><b>${pctText(p, precise)}</b><small>${fmt(o.c)}</small></span>` : ''}
-        </button></li>`;
-      }).join('')}</ul>`;
+      body.innerHTML = `${podium}<ul class="opts">${opts.map(rowHTML).join('')}</ul>`;
     }
 
     // animate bars from their resting state
@@ -274,16 +322,20 @@ function mountBlock(el, d, ctx = {}) {
     if (busy) return;
     busy = true;
     el.classList.add('is-busy');
+    const changed = Boolean(d.mine) && d.mine !== optionId;
     try {
       const r = await api('/vote', { questionId: d.id, optionId });
       Object.assign(d, r);
       detailCache.set(d.id, d);
       if (listCache) { const s = listCache.questions.find((x) => x.id === d.id); if (s) Object.assign(s, { mine: d.mine, total: d.total, leader: d.leader }); }
       mode = 'results';
+      sort = '';
       reward = d.options.find((o) => o.id === optionId)?.reward || null;
       draw();
       if (ev) confetti(ev.clientX, ev.clientY);
+      if (changed) mark('changed');
       ctx.onVoted?.(d);
+      afterVote();
     } catch (err) {
       toast(err.message);
     } finally {
@@ -295,6 +347,8 @@ function mountBlock(el, d, ctx = {}) {
   el.addEventListener('click', (e) => {
     const opt = e.target.closest('[data-opt]');
     if (opt && mode === 'vote') return choose(opt.dataset.opt, e);
+    const so = e.target.closest('[data-sort]');
+    if (so) { sort = so.dataset.sort; return draw(); }
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'results') { mode = 'results'; draw(); }
     if (act === 'change' || act === 'vote') { mode = 'vote'; reward = null; draw(); }
@@ -409,10 +463,10 @@ async function home() {
 }
 
 // the interactive map is loaded only when someone gets near it
-const mapCtx = () => ({ esc, fmt, pctText, flagImg, go, getList, getDetail });
+const mapCtx = () => ({ esc, fmt, pctText, flagImg, go, getList, getDetail, track: mark });
 function lazyMap(slot, opts) {
   const start = async () => {
-    try { const { mountMap } = await import('/map.js'); await mountMap(slot, mapCtx(), opts); }
+    try { const { mountMap } = await import('/map.js'); await mountMap(slot, mapCtx(), opts); mark('map'); }
     catch (err) { console.error(err); slot.innerHTML = '<p class="empty">The map could not load. Try reloading.</p>'; }
   };
   if (!('IntersectionObserver' in window)) return start();
@@ -458,6 +512,7 @@ async function explore() {
 async function questionPage(id) {
   const [d, list] = await Promise.all([getDetail(id, true), getList()]);
   setHue(d.hue);
+  document.title = `${d.prompt} · Which Country Are You?`;
   app.innerHTML = `<div class="view wrap q-page">
     <a class="back" href="/explore" data-link>${BACK} All questions</a>
     <div class="q-head hued" style="--h:${d.hue}">
@@ -483,12 +538,10 @@ async function questionPage(id) {
   const drawAfter = (dd) => {
     const next = list.questions.find((q) => q.id !== dd.id && !q.mine);
     after.innerHTML = `${dd.mine && next ? `<a class="btn" href="/q/${esc(next.id)}" data-link>Next: ${esc(next.prompt)} ${ARROW}</a>` : ''}<button class="btn alt" type="button" id="share">Share this question</button>`;
-    after.querySelector('#share').addEventListener('click', async () => {
-      const url = location.href;
-      try {
-        if (navigator.share) await navigator.share({ title: dd.prompt, url });
-        else { await navigator.clipboard.writeText(url); toast('Link copied.'); }
-      } catch { /* dismissed share sheet */ }
+    after.querySelector('#share').addEventListener('click', () => {
+      const mo = dd.mineOpt;
+      const text = dd.id === 'country' && mo ? `I'm from ${mo.label}${mo.flag ? ' ' + flagEmoji(mo.flag) : ''}. Which country are you?` : mo ? `${dd.prompt} I said ${mo.emoji ? mo.emoji + ' ' : ''}${mo.label}. What would you say?` : `${dd.prompt} Vote and see how the world answers.`;
+      openShare({ title: dd.prompt, text, url: location.origin + '/q/' + dd.id, toast });
     });
   };
 
@@ -523,22 +576,82 @@ function notFound() {
   app.innerHTML = `<div class="view wrap"><div class="page-head"><p class="eyebrow">404</p><h1 class="display">That page isn't on the map.</h1><p><a class="btn" href="/" data-link>Back home</a></p></div></div>`;
 }
 
+
+// ---------- badges
+const mineMap = () => Object.fromEntries((listCache?.questions || []).filter((q) => q.mine).map((q) => [q.id, q.mine]));
+let toastQueue = Promise.resolve();
+function checkAchievements() {
+  if (!listCache) return;
+  const { fresh } = evaluate(mineMap(), listCache.questions.length);
+  if (!fresh.length) return;
+  const lines = fresh.length > 2 ? [`🏅 ${fresh.length} new badges! Open your passport.`] : fresh.map((b) => `${b.e} Badge unlocked: ${b.n}`);
+  for (const line of lines) toastQueue = toastQueue.then(() => { toast(line); confetti(innerWidth / 2, innerHeight * 0.7); return new Promise((r) => setTimeout(r, 3300)); });
+}
+const afterVote = () => checkAchievements();
+setUnlockHandler(checkAchievements);
+
+let profileTimer;
+async function profilePage() {
+  setHue(178);
+  const list = await getList(true);
+  const total = list.questions.length;
+  const m = mineMap();
+  const ev = evaluate(m, total);
+  const me = getMe();
+  const lv = level(ev.n, total);
+  const flag = m.country ? m.country.toLowerCase() : null;
+  const eggs = me.eggs.length;
+  const earnedCount = ev.earned.size;
+  const tiles = [
+    ['🗳️', 'Answered', `${ev.n}/${total}`], ['⏱️', 'Time here', '<span id="pt"></span>'], ['📅', 'Days visited', new Set(me.days).size], ['🔥', 'Best streak', `${streak()} ${streak() === 1 ? 'day' : 'days'}`],
+    ['🥚', 'Secrets found', `${eggs}/${EGGS_TOTAL}`], ['📣', 'Times shared', me.shares], ['🔄', 'Changed my mind', me.changed],
+  ];
+  app.innerHTML = `<div class="view wrap profile">
+    <div class="page-head"><p class="eyebrow">Your passport</p><h1 class="display">${esc(lv.title)}</h1></div>
+    <section class="passport paper">
+      <div class="pp-avatar">${flag ? flagImg(flag) : '<span aria-hidden="true">🌍</span>'}</div>
+      <div class="pp-main"><strong>${ev.n} of ${total} questions answered</strong><div class="xp" role="progressbar" aria-valuenow="${lv.pct}" aria-valuemin="0" aria-valuemax="100"><i style="--w:${lv.pct}"></i></div><span>${earnedCount} of ${ACHIEVEMENTS.length} badges collected</span></div>
+      <button class="btn alt" type="button" id="share-pp">Share my passport</button>
+    </section>
+    <div class="stat-grid">${tiles.map(([e, l, v]) => `<div class="stat"><span class="stat-e" aria-hidden="true">${e}</span><b class="num">${v}</b><small>${l}</small></div>`).join('')}</div>
+    <div class="section-head" style="margin-top:44px"><h2>Badges</h2><span class="block-note">${earnedCount}/${ACHIEVEMENTS.length}</span></div>
+    <div class="badges">${ACHIEVEMENTS.map((a) => {
+      const on = ev.earned.has(a.id);
+      const hide = a.secret && !on;
+      return `<div class="badge ${on ? 'on' : 'off'}"><span class="badge-ic" aria-hidden="true">${hide ? '❓' : a.e}</span><strong>${hide ? 'Secret' : esc(a.n)}</strong><small>${hide ? 'Keep exploring. Poke things.' : esc(a.d)}</small></div>`;
+    }).join('')}</div>
+    <div class="section-head" style="margin-top:44px"><h2>Your answers</h2></div>
+    ${ev.n ? `<ul class="rows">${list.questions.filter((q) => q.mine).map((q) => `<li><a class="row hued" style="--h:${q.hue}" href="/q/${esc(q.id)}" data-link><span class="row-main">${q.mineOpt?.flag ? flagImg(q.mineOpt.flag) : q.mineOpt?.swatch ? `<span class="opt-swatch" style="background:${esc(q.mineOpt.swatch)}"></span>` : q.mineOpt?.emoji ? `<span class="opt-emoji big" aria-hidden="true">${q.mineOpt.emoji}</span>` : '<i class="row-dot"></i>'}<span class="row-prompt">${esc(q.prompt)}<span class="row-sub">You said <strong>${esc(q.mineOpt?.label || '')}</strong></span></span></span><span class="row-go">${ARROW}</span></a></li>`).join('')}</ul>` : '<p class="empty">Nothing yet. <a href="/explore" data-link>Answer a question</a> and your passport starts to fill.</p>'}
+    <p class="fine">Badges, time and streaks are saved in this browser only. Your votes stay counted on the server either way.</p>
+  </div>`;
+  const pt = app.querySelector('#pt');
+  const tick = () => { pt.textContent = fmtTime(getMe().playMs); };
+  tick();
+  clearInterval(profileTimer);
+  profileTimer = setInterval(() => (document.body.contains(pt) ? tick() : clearInterval(profileTimer)), 1000);
+  app.querySelector('#share-pp').addEventListener('click', () => openShare({ title: 'My passport', text: `I'm a ${lv.title} on Which Country Are You: ${ev.n}/${total} answered, ${earnedCount} badges. What's your passport?`, url: location.origin, toast }));
+}
+
 // ---------- router
 const routes = [
   [/^\/$/, () => home()],
   [/^\/explore\/?$/, () => explore()],
   [/^\/map\/?$/, () => mapPage()],
+  [/^\/profile\/?$/, () => profilePage()],
   [/^\/q\/([a-z0-9-]+)\/?$/, (m) => questionPage(m[1])],
   [/^\/about\/?$/, () => about()],
 ];
 
+const TITLES = { '/': 'Which Country Are You?', '/explore': 'Every question', '/map': 'The map', '/profile': 'Your passport', '/about': 'About' };
 async function render() {
   const path = location.pathname;
-  document.querySelectorAll('.nav a').forEach((a) => (a.getAttribute('href') === path ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+  const t = TITLES[path.replace(/\/$/, '') || '/'];
+  document.title = t ? (t === 'Which Country Are You?' ? t : `${t} · Which Country Are You?`) : 'Which Country Are You?';
+  document.querySelectorAll('.nav a, .tabbar a').forEach((a) => (a.getAttribute('href') === path ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   for (const [re, fn] of routes) {
     const m = re.exec(path);
     if (m) {
-      try { await fn(m); } catch (err) { app.innerHTML = `<div class="view wrap page-head"><h1 class="display">${err.status === 404 ? "That question isn't here." : 'Something broke.'}</h1><p>${esc(err.message)}</p><p><a class="btn" href="/" data-link>Back home</a></p></div>`; }
+      try { await fn(m); checkAchievements(); } catch (err) { app.innerHTML = `<div class="view wrap page-head"><h1 class="display">${err.status === 404 ? "That question isn't here." : 'Something broke.'}</h1><p>${esc(err.message)}</p><p><a class="btn" href="/" data-link>Back home</a></p></div>`; }
       return;
     }
   }
@@ -560,4 +673,6 @@ document.addEventListener('click', (e) => {
 });
 window.addEventListener('popstate', render);
 initFooter();
+startTracking();
+initEggs({ toast, confetti });
 render();

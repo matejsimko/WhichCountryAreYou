@@ -27,6 +27,12 @@ npm run seed:clear   # remove the demo votes
 
 `/map` and the landing page show an interactive world map: coloured by votes for any country question, smooth zoom to continents and countries, drag, pinch and Ctrl+scroll zoom, your own answer pinned. Outlines live in `public/map.json`, built from Natural Earth with `npm run build:map` (dev dependencies only; the result is committed). `public/map.js` is loaded only when the map scrolls into view.
 
+## Passport, badges and secrets
+
+`/profile` is the passport: level, playtime, streaks and 27 badges (`public/me.js`, saved in `localStorage`, no accounts). Badges unlock from your answers and from small actions (opening the map, zooming to every continent, sharing). There are 8 hidden easter eggs in `public/eggs.js`. The share popup is `public/share.js`; brand icons are from simple-icons (CC0).
+
+Long lists (countries, languages, animals) scroll inside their own box with search and sort chips and load 30 rows at a time.
+
 ## Look and feel
 
 Cut-paper world, light only (no dark mode, on purpose). Cream paper with a map-doodle backdrop (`public/doodles.svg`), torn-edge hills and a swinging bunting of flags in the hero (drawn in `public/app.js`: `skySVG`, `hillsSVG`, `buildBunting`), chunky paper strips for answers, confetti on every vote.

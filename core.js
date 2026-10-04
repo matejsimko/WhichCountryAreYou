@@ -92,7 +92,9 @@ function leaderOf(q, counts, total) {
 
 function summary(q, counts, mine) {
   const total = totalOf(counts);
+  const mo = mine ? q.options.find((o) => o.id === mine) : null;
   return {
+    mineOpt: mo ? { label: mo.label, emoji: mo.emoji || null, flag: mo.code ? mo.code.toLowerCase() : mo.flag || null, swatch: mo.swatch || null } : null,
     id: q.id, category: q.category, prompt: q.prompt, hue: q.hue,
     kind: q.options.length === 2 ? 'duel' : q.kind === 'countries' ? 'countries' : 'list',
     optionCount: q.options.length, total, leader: leaderOf(q, counts, total), mine: mine ?? null,
@@ -162,6 +164,8 @@ async function metaFor(pathname) {
     }
   } else if (/^\/explore\/?$/.test(pathname)) {
     title = 'Every question · Which Country Are You?';
+  } else if (/^\/profile\/?$/.test(pathname)) {
+    title = 'Your passport · Which Country Are You?';
   } else if (/^\/map\/?$/.test(pathname)) {
     title = 'The map · Which Country Are You?';
   } else if (/^\/about\/?$/.test(pathname)) {
@@ -210,7 +214,7 @@ export async function handle(req, res) {
 
     const m = /^\/q\/([a-z0-9-]+)\/?$/.exec(pathname);
     if (m && !questionById.has(m[1])) return await sendShell(res, pathname, 404);
-    if (pathname === '/' || m || /^\/(explore|about|map)\/?$/.test(pathname)) return await sendShell(res, pathname);
+    if (pathname === '/' || m || /^\/(explore|about|map|profile)\/?$/.test(pathname)) return await sendShell(res, pathname);
     return await sendShell(res, pathname, 404);
   } catch (err) {
     console.error(err);
