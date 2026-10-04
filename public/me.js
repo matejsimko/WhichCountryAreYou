@@ -67,6 +67,7 @@ export const ACHIEVEMENTS = [
   { id: 'ten', e: '🔟', n: 'Double digits', d: 'Answer 10 questions.', t: (c) => c.n >= 10 },
   { id: 'all', e: '🏆', n: 'Completionist', d: 'Answer every question.', t: (c) => c.n >= c.total },
   { id: 'country', e: '🌍', n: 'Passport stamped', d: 'Say which country you are.', t: (c) => !!c.mine.country },
+  { id: 'home', e: '🏘️', n: 'Hometown hero', d: 'Pick your city or state.', t: (c) => c.hasPlace },
   { id: 'trip', e: '✈️', n: 'Wanderlust', d: 'Pick a place to fly tomorrow.', t: (c) => !!c.mine['dream-trip'] },
   { id: 'food', e: '🍜', n: 'Foodie', d: 'Pick a favorite cuisine and a best-food country.', t: (c) => !!c.mine.cuisine && !!c.mine['best-food'] },
   { id: 'kind', e: '💛', n: 'Good vibes', d: 'Name the country with the nicest people.', t: (c) => !!c.mine['nicest-people'] },
@@ -105,7 +106,7 @@ export function level(n, total) {
 
 // Work out which badges are earned; returns the ones that are new since last time.
 export function evaluate(mineMap, total) {
-  const c = { mine: mineMap, n: Object.keys(mineMap).length, total, me };
+  const c = { mine: mineMap, n: Object.keys(mineMap).filter((k) => !k.startsWith('place-')).length, hasPlace: Object.keys(mineMap).some((k) => k.startsWith('place-')), total, me };
   const have = new Set(me.unlocked);
   const now = ACHIEVEMENTS.filter((a) => a.t(c));
   const fresh = now.filter((a) => !have.has(a.id));

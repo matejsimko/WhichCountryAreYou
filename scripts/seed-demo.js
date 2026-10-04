@@ -42,6 +42,19 @@ for (const q of QUESTIONS) {
     rows.push({ sql: 'INSERT INTO votes (question_id, device_id, option_id, ip_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', args: [q.id, `seed-${q.id}-${i}`, q.options[idx].id, 'seed', now, now] });
   }
 }
+// cities and regions for a few countries, weighted by population
+import fs from 'node:fs';
+const placesAll = JSON.parse(fs.readFileSync(new URL('../public/places.json', import.meta.url), 'utf8'));
+for (const [cc, n] of [['US', 2600], ['SK', 700], ['DE', 900], ['GB', 800], ['IN', 900], ['BR', 700], ['PL', 500], ['FR', 500]]) {
+  const pr = placesAll[cc];
+  const w = pr.map((r) => Math.pow(r[5] + 1, 0.8) * (r[6] === 'r' ? 0.5 : 1));
+  const sum = w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < n; i++) {
+    let r = rand() * sum, idx = 0;
+    while (r > w[idx] && idx < w.length - 1) r -= w[idx++];
+    rows.push({ sql: 'INSERT INTO votes (question_id, device_id, option_id, ip_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', args: ['place-' + cc.toLowerCase(), `seed-place-${cc}-${i}`, pr[idx][0], 'seed', now, now] });
+  }
+}
 for (let i = 0; i < rows.length; i += 1000) await client.batch(rows.slice(i, i + 1000), 'write');
 await rebuildCounts();
 console.log(`Demo votes added (${rows.length}). Run "npm run seed:clear" to remove them.`);

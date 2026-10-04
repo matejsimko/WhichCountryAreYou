@@ -12,6 +12,6 @@
     { "source": "/q/:id", "destination": "/api/index?route=q/:id" }
   ],
   "functions": {
-    "api/index.js": { "includeFiles": "templates/**", "maxDuration": 10 }
+    "api/index.js": { "includeFiles": "{templates/**,public/places.json}", "maxDuration": 10 }
   }
 }

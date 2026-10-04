@@ -214,21 +214,24 @@ const SORTS = {
 function mountBlock(el, d, ctx = {}) {
   const isDuel = d.options.length === 2;
   const isCountries = d.kind === 'countries';
-  const rolling = d.options.length > 14; // long lists live in a scrolling roller with filters
+  const groups = [...new Set(d.options.map((o) => o.group).filter(Boolean))];
+  const rolling = d.options.length > 14 || groups.length > 1; // long lists live in a scrolling roller with filters
   const CHUNK = 30;
   let mode = d.mine ? 'results' : 'vote';
   let filter = '';
+  let group = '';
   let sort = '';
   let shown = CHUNK;
   let busy = false;
   let reward = null;
 
   el.classList.add('block');
-  el.innerHTML = `${rolling ? `<div class="block-tools"><input class="block-search" id="search-${esc(d.id)}" type="search" placeholder="Search ${isCountries ? 'countries' : 'options'}" autocomplete="off" aria-label="Search"><div class="chips sortbar" role="group" aria-label="Sort"></div></div>` : ''}<div class="block-reward"></div><div class="block-body"></div><div class="block-foot"></div>`;
+  el.innerHTML = `${rolling ? `<div class="block-tools"><input class="block-search" id="search-${esc(d.id)}" type="search" placeholder="Search ${isCountries ? 'countries' : 'options'}" autocomplete="off" aria-label="Search"><div class="chips sortbar" role="group" aria-label="Sort"></div>${groups.length > 1 ? `<div class="chips groupbar" role="group" aria-label="Show"></div>` : ''}</div>` : ''}<div class="block-reward"></div><div class="block-body"></div><div class="block-foot"></div>`;
   const body = el.querySelector('.block-body');
   const foot = el.querySelector('.block-foot');
   const rewardEl = el.querySelector('.block-reward');
   const sortbar = el.querySelector('.sortbar');
+  const groupbar = el.querySelector('.groupbar');
 
   const precise = isCountries;
   let view = []; // the rows the roller can show, in order
@@ -245,7 +248,7 @@ function mountBlock(el, d, ctx = {}) {
       <i class="opt-fill"></i>
       ${showRes && sortedByVotes() ? `<span class="opt-rank">${ranks.get(o.id)}</span>` : ''}
       ${fl ? flagImg(fl) : ''}${o.swatch ? `<span class="opt-swatch" style="background:${esc(o.swatch)}"></span>` : ''}${o.emoji ? `<span class="opt-emoji" aria-hidden="true">${o.emoji}</span>` : ''}
-      <span class="opt-label">${esc(o.label)}${mine(o) ? '<span class="tag">you</span>' : ''}</span>
+      <span class="opt-label">${esc(o.label)}${o.sub ? `<small class="opt-sub">${esc(o.sub)}</small>` : ''}${mine(o) ? '<span class="tag">you</span>' : ''}</span>
       ${showRes ? `<span class="opt-meta"><b>${pctText(p, precise)}</b><small>${fmt(o.c)}</small></span>` : ''}
     </button></li>`;
   }
@@ -268,16 +271,18 @@ function mountBlock(el, d, ctx = {}) {
       const cur = curSort();
       sortbar.innerHTML = avail.map((k) => `<button class="chip" type="button" data-sort="${k}" aria-pressed="${k === cur}">${SORTS[k]}</button>`).join('');
     }
+    if (groupbar) groupbar.innerHTML = ['', ...groups].map((g) => `<button class="chip" type="button" data-group="${esc(g)}" aria-pressed="${g === group}">${g || 'All'}</button>`).join('');
+    if (group) opts = opts.filter((o) => o.group === group);
     const s = curSort();
-    if (s === 'votes') opts = byVotes;
-    else if (s === 'fewest') opts = [...byVotes].reverse();
+    if (s === 'votes') opts = byVotes.filter((o) => !group || o.group === group);
+    else if (s === 'fewest') opts = [...byVotes].reverse().filter((o) => !group || o.group === group);
     else if (s === 'za') opts.sort((a, b) => b.label.localeCompare(a.label));
     else if (s === 'az') opts.sort((a, b) => a.label.localeCompare(b.label));
 
     let podium = '';
     if (filter) {
       const f = norm(filter);
-      opts = opts.filter((o) => norm(o.label).includes(f) || (o.alt && norm(o.alt).includes(f)) || (o.code && norm(o.code) === f));
+      opts = opts.filter((o) => norm(o.label).includes(f) || (o.sub && norm(o.sub).includes(f)) || (o.alt && norm(o.alt).includes(f)) || (o.code && norm(o.code) === f));
     } else if (showRes && isCountries && max > 0) {
       const top = byVotes.slice(0, 3).filter((o) => o.c > 0);
       if (top.length === 3) {
@@ -350,7 +355,7 @@ function mountBlock(el, d, ctx = {}) {
       const r = await api('/vote', { questionId: d.id, optionId });
       Object.assign(d, r);
       detailCache.set(d.id, d);
-      if (listCache) { const s = listCache.questions.find((x) => x.id === d.id); if (s) Object.assign(s, { mine: d.mine, total: d.total, leader: d.leader }); }
+      if (listCache) { const s = listCache.questions.find((x) => x.id === d.id); if (s) Object.assign(s, { mine: d.mine, total: d.total, leader: d.leader }); else if (d.id.startsWith('place-')) (listCache.placeMine ||= {})[d.id] = d.mine; }
       mode = 'results';
       sort = '';
       reward = d.options.find((o) => o.id === optionId)?.reward || null;
@@ -371,6 +376,8 @@ function mountBlock(el, d, ctx = {}) {
   el.addEventListener('click', (e) => {
     const opt = e.target.closest('[data-opt]');
     if (opt && mode === 'vote') return choose(opt.dataset.opt, e);
+    const gr = e.target.closest('[data-group]');
+    if (gr) { group = gr.dataset.group; return draw(); }
     const so = e.target.closest('[data-sort]');
     if (so) { sort = so.dataset.sort; return draw(); }
     const act = e.target.closest('[data-act]')?.dataset.act;
@@ -488,7 +495,7 @@ async function home() {
 }
 
 // the interactive map is loaded only when someone gets near it
-const mapCtx = () => ({ esc, fmt, pctText, flagImg, go, getList, getDetail, track: mark });
+const mapCtx = () => ({ esc, fmt, pctText, flagImg, go, getList, getDetail, track: mark, toast, vote: async (questionId, optionId) => { const r = await api('/vote', { questionId, optionId }); detailCache.set(questionId, r); if (listCache) (listCache.placeMine ||= {})[questionId] = r.mine; sfx.vote(); checkAchievements(); return r; }, celebrate: confetti });
 function lazyMap(slot, opts) {
   const start = async () => {
     try { const { mountMap } = await import('/map.js'); await mountMap(slot, mapCtx(), opts); mark('map'); }
@@ -539,7 +546,7 @@ async function questionPage(id) {
   setHue(d.hue);
   document.title = `${d.prompt} · Which Country Are You?`;
   app.innerHTML = `<div class="view wrap q-page">
-    <a class="back" href="/explore" data-link>${BACK} All questions</a>
+    <a class="back" href="${d.country ? '/q/country' : '/explore'}" data-link>${BACK} ${d.country ? 'Back to countries' : 'All questions'}</a>
     <div class="q-head hued" style="--h:${d.hue}">
       <p class="eyebrow">${esc(catLabel(list, d.category))}</p>
       <h1 class="display q-title">${esc(d.prompt)}</h1>
@@ -558,7 +565,9 @@ async function questionPage(id) {
     const p = dd.total ? (c / dd.total) * 100 : 0;
     const line = c <= 1 ? `You're the first to say <strong>${esc(mineOpt.label)}</strong>.` : `You and ${fmt(c - 1)} ${c - 1 === 1 ? 'other' : 'others'} said <strong>${esc(mineOpt.label)}</strong>, ${pctText(p, dd.kind === 'countries')} of ${fmt(dd.total)}.`;
     const fl = flagOf(mineOpt);
-    sum.innerHTML = fl ? `<div class="you-card">${flagImg(fl)}<div><p class="eyebrow">You picked</p><div class="display">${esc(mineOpt.label)}</div></div></div><p style="margin:12px 0 0">${line}</p>` : line;
+    const cc = dd.id === 'country' ? dd.mine.toLowerCase() : null;
+    const placeLink = cc && listCache?.placeCountries?.includes(cc) ? `<a class="btn place-cta" href="/q/place-${cc}" data-link>${listCache.placeMine?.['place-' + cc] ? 'Change your city' : `Now pick your city or state`} ${ARROW}</a>` : '';
+    sum.innerHTML = fl ? `<div class="you-card">${flagImg(fl)}<div><p class="eyebrow">You picked</p><div class="display">${esc(mineOpt.label)}</div></div></div><p style="margin:12px 0 0">${line}</p>${placeLink}` : line;
   };
   const drawAfter = (dd) => {
     const next = list.questions.find((q) => q.id !== dd.id && !q.mine);
@@ -608,7 +617,7 @@ function notFound() {
 
 
 // ---------- badges
-const mineMap = () => Object.fromEntries((listCache?.questions || []).filter((q) => q.mine).map((q) => [q.id, q.mine]));
+const mineMap = () => ({ ...Object.fromEntries((listCache?.questions || []).filter((q) => q.mine).map((q) => [q.id, q.mine])), ...(listCache?.placeMine || {}) });
 let toastQueue = Promise.resolve();
 function checkAchievements() {
   if (!listCache) return;

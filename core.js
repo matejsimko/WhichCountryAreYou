@@ -6,6 +6,25 @@ import { QUESTIONS, CATEGORIES, FEATURED, questionById } from './questions.js';
 import * as db from './db.js';
 
 const TEMPLATE = fileURLToPath(new URL('./templates/index.html', import.meta.url));
+const PLACES = JSON.parse(fs.readFileSync(fileURLToPath(new URL('./public/places.json', import.meta.url)), 'utf8')); // built by scripts/build-places.js
+const THE = new Set(['US', 'GB', 'NL', 'PH', 'AE', 'BS', 'GM', 'CD', 'CG', 'CZ', 'MV', 'KM', 'SB', 'MH', 'SC', 'VA']);
+const countryLabel = new Map(QUESTIONS[0].options.map((o) => [o.id, (THE.has(o.id) && !/^(Czechia)$/.test(o.label) ? 'the ' : '') + o.label]));
+
+// Every country gets its own "where in X?" question, made on demand: id place-sk, place-us, ...
+const placeCache = new Map();
+function placeQuestion(id) {
+  const m = /^place-([a-z]{2})$/.exec(id);
+  if (!m) return null;
+  const cc = m[1].toUpperCase();
+  const rows = PLACES[cc];
+  if (!rows) return null;
+  if (!placeCache.has(id)) {
+    const options = rows.map(([oid, n, s, , , , g]) => ({ id: oid, label: n, sub: s || undefined, emoji: g === 'r' ? '🗺️' : '🏙️', group: g === 'r' ? 'Regions' : 'Cities' }));
+    placeCache.set(id, { id, category: 'where', prompt: `Where in ${countryLabel.get(cc) || cc} are you from?`, hue: 172, kind: 'places', country: cc.toLowerCase(), options, optionIds: new Set(options.map((o) => o.id)) });
+  }
+  return placeCache.get(id);
+}
+const getQuestion = (id) => questionById.get(id) || placeQuestion(id);
 
 const SECRET = process.env.SECRET || 'dev-only-secret-change-me';
 const SITE_URL = (process.env.SITE_URL || 'https://whichcountryareyou.com').replace(/\/$/, '');
@@ -96,7 +115,8 @@ function summary(q, counts, mine) {
   return {
     mineOpt: mo ? { label: mo.label, emoji: mo.emoji || null, flag: mo.code ? mo.code.toLowerCase() : mo.flag || null, swatch: mo.swatch || null } : null,
     id: q.id, category: q.category, prompt: q.prompt, hue: q.hue,
-    kind: q.options.length === 2 ? 'duel' : q.kind === 'countries' ? 'countries' : 'list',
+    kind: q.options.length === 2 ? 'duel' : q.kind === 'countries' ? 'countries' : q.kind === 'places' ? 'places' : 'list',
+    country: q.country,
     optionCount: q.options.length, total, leader: leaderOf(q, counts, total), mine: mine ?? null,
   };
 }
@@ -111,12 +131,13 @@ async function api(req, res, p) {
     const questions = QUESTIONS.map((q) => summary(q, all[q.id] || {}, mine[q.id]));
     const countries = Object.keys(all.country || {}).length;
     const answers = questions.reduce((a, q) => a + q.total, 0);
-    return json(res, 200, { questions, categories: CATEGORIES, featured: FEATURED, stats: { answers, countries, questions: questions.length } });
+    const placeMine = Object.fromEntries(Object.entries(mine).filter(([id]) => id.startsWith('place-')));
+    return json(res, 200, { questions, categories: CATEGORIES, featured: FEATURED, placeCountries: Object.keys(PLACES).map((c) => c.toLowerCase()), placeMine, stats: { answers, countries, questions: questions.length } });
   }
 
   const one = /^\/api\/questions\/([a-z0-9-]+)$/.exec(p);
   if (req.method === 'GET' && one) {
-    const q = questionById.get(one[1]);
+    const q = getQuestion(one[1]);
     if (!q) return json(res, 404, { error: 'No such question.' });
     const dev = readDevice(req);
     const [counts, mine] = await Promise.all([db.counts(q.id), dev ? db.getVote(q.id, dev) : null]);
@@ -128,7 +149,7 @@ async function api(req, res, p) {
     if (origin && new URL(origin).host !== req.headers.host) return json(res, 403, { error: 'Cross-site votes are not allowed.' });
     let body;
     try { body = await readBody(req); } catch { return json(res, 400, { error: 'Bad request.' }); }
-    const q = questionById.get(body.questionId);
+    const q = getQuestion(body.questionId);
     if (!q) return json(res, 404, { error: 'No such question.' });
     if (typeof body.optionId !== 'string' || !q.optionIds.has(body.optionId)) return json(res, 400, { error: 'No such option.' });
 
@@ -156,7 +177,7 @@ async function metaFor(pathname) {
   let desc = 'A tiny census taken by anyone. Pick your country, vote on everything else, and watch the world answer.';
   const m = /^\/q\/([a-z0-9-]+)\/?$/.exec(pathname);
   if (m) {
-    const q = questionById.get(m[1]);
+    const q = getQuestion(m[1]);
     if (q) {
       const total = totalOf(await db.counts(q.id));
       title = `${q.prompt} · Which Country Are You?`;
@@ -213,7 +234,7 @@ export async function handle(req, res) {
     }
 
     const m = /^\/q\/([a-z0-9-]+)\/?$/.exec(pathname);
-    if (m && !questionById.has(m[1])) return await sendShell(res, pathname, 404);
+    if (m && !getQuestion(m[1])) return await sendShell(res, pathname, 404);
     if (pathname === '/' || m || /^\/(explore|about|map|profile)\/?$/.test(pathname)) return await sendShell(res, pathname);
     return await sendShell(res, pathname, 404);
   } catch (err) {

@@ -28,6 +28,7 @@ export async function mountMap(el, ctx, opts = {}) {
     <div class="map-stage">
       <svg class="map-svg" viewBox="${world.join(' ')}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <g class="lands">${data.countries.map((c) => `<path class="land" data-c="${c.c}" d="${c.d}" style="--x:${(c.p[0] / 1000).toFixed(2)}"/>`).join('')}</g>
+        <g class="dots"></g>
         <g class="map-pin" hidden><g class="pin-bob"><circle class="pin-ring" r="10"/><path d="M0 0C-6-8-12-13-12-20a12 12 0 0 1 24 0C12-13 6-8 0 0Z" fill="#EE5A36" stroke="#fff" stroke-width="2"/><circle cy="-20" r="4.5" fill="#fff"/></g></g>
       </svg>
       <div class="map-zoom"><button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="out" aria-label="Zoom out">&minus;</button><button type="button" data-zoom="reset" aria-label="Show the whole world">&#8962;</button></div>
@@ -42,6 +43,7 @@ export async function mountMap(el, ctx, opts = {}) {
   const svg = el.querySelector('.map-svg');
   const lands = el.querySelector('.lands');
   const pin = el.querySelector('.map-pin');
+  const dotsG = el.querySelector('.dots');
   const tip = el.querySelector('.map-tip');
   const card = el.querySelector('.map-card');
   const topEl = el.querySelector('.map-top');
@@ -100,6 +102,7 @@ export async function mountMap(el, ctx, opts = {}) {
     svg.setAttribute('viewBox', `${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`);
     stage.classList.toggle('is-zoomed', vb.w < fit(world).w * 0.85);
     placePin();
+    scaleDots();
   }
   function placePin() {
     if (pin.hasAttribute('hidden') || !pin.dataset.x) return;
@@ -141,6 +144,85 @@ export async function mountMap(el, ctx, opts = {}) {
   }
   function markCustom() { if (view !== 'country') { view = 'custom'; el.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', 'false')); } }
 
+  // ---------- cities and regions inside the selected country
+  let placeMode = 'c', placesAll = null, placeDetail = null, placeRows = [], dotEls = [], labelEls = [], placeCode = null, placeSel = null;
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const placeQid = () => 'place-' + placeCode.toLowerCase();
+  function clearPlaces() {
+    dotsG.replaceChildren();
+    dotEls = []; labelEls = []; placeRows = []; placeDetail = null; placeCode = null; placeSel = null;
+  }
+  async function showPlaces(code) {
+    clearPlaces();
+    if (!code) return;
+    try {
+      placesAll ||= await fetch('/places.json').then((r) => r.json());
+      const rows = placesAll[code];
+      if (!rows || selected !== code) return;
+      let detailP = null;
+      try { detailP = await ctx.getDetail('place-' + code.toLowerCase(), true); } catch { /* no votes yet is fine */ }
+      if (selected !== code) return;
+      placeCode = code; placeRows = rows; placeDetail = detailP; placeMode = 'c';
+      drawPlaces();
+    } catch (err) { console.error(err); }
+  }
+  const placeCounts = () => placeDetail?.counts || {};
+  function drawPlaces() {
+    dotsG.replaceChildren();
+    dotEls = []; labelEls = [];
+    const counts = placeCounts();
+    const maxC = Math.max(1, ...Object.values(counts));
+    // biggest first, so small dots end up on top and stay clickable
+    const rows = placeRows.filter((r) => r[6] === placeMode).sort((a, b) => b[5] - a[5]);
+    for (const [id, name, sub, x, y, pop, g] of rows) {
+      const c = counts[id] || 0;
+      const dot = document.createElementNS(SVGNS, 'circle');
+      dot.setAttribute('class', `dot ${g === 'r' ? 'region' : 'city'}${c ? ' has' : ''}${placeDetail?.mine === id ? ' mine' : ''}`);
+      dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+      dot.dataset.id = id;
+      dot._r = (g === 'r' ? 4.5 : 3.6) + (c ? 7 * Math.sqrt(c / maxC) : 0);
+      dotsG.append(dot); dotEls.push(dot);
+    }
+    // name tags for the main cities
+    if (placeMode === 'c') placeRows.filter((r) => r[6] === 'c').sort((a, b) => b[5] - a[5]).slice(0, 8).forEach(([id, name, , x, y]) => {
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('class', 'dot-label');
+      t.setAttribute('x', x); t.setAttribute('y', y);
+      t.textContent = name;
+      dotsG.append(t); labelEls.push(t);
+    });
+    scaleDots();
+    drawPlaceTop();
+  }
+  function scaleDots() {
+    if (!dotEls.length) return;
+    const s = vb.w / stage.clientWidth;
+    for (const d of dotEls) d.setAttribute('r', (d._r * s).toFixed(3));
+    for (const t of labelEls) { t.style.fontSize = `${(12 * s).toFixed(3)}px`; t.setAttribute('dx', (9 * s).toFixed(3)); t.setAttribute('dy', (4 * s).toFixed(3)); t.style.strokeWidth = `${(3.5 * s).toFixed(3)}px`; }
+  }
+  const placeRow = (id) => placeRows.find((r) => r[0] === id);
+  function selectPlace(id) {
+    placeSel = id;
+    dotEls.forEach((d) => d.classList.toggle('is-selected', d.dataset.id === id));
+    const [, name, sub, x, y, , g] = placeRow(id);
+    const c = placeCounts()[id] || 0;
+    const tot = Object.values(placeCounts()).reduce((a, b) => a + b, 0);
+    const mineHere = placeDetail?.mine === id;
+    card.innerHTML = `${flagImg(placeCode.toLowerCase())}<div class="map-card-text"><strong>${esc(name)}</strong><span>${esc([sub, g === 'r' ? 'region' : null].filter(Boolean).join(' · '))}${c ? ` · ${fmt(c)} ${c === 1 ? 'vote' : 'votes'} · ${pctText((c / tot) * 100, true)}` : ' · no votes yet'}</span></div>${mineHere ? '<span class="tag">you</span>' : '<button class="btn mini" type="button" data-vote-place="' + esc(id) + '">I\'m from here</button>'}<button class="map-card-x" type="button" aria-label="Close">&times;</button>`;
+    card.hidden = false;
+    card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop');
+    const w = 26;
+    animateTo(fit([x - w / 2, y - (w / aspect) / 2, w, w / aspect], 1.0));
+  }
+  function drawPlaceTop() {
+    const counts = placeCounts();
+    const label = detail.options.find((o) => o.id === placeCode)?.label || byCode.get(placeCode)?.n || placeCode;
+    const hasRegions = placeRows.some((r) => r[6] === 'r');
+    const regionName = placeCode === 'US' ? 'States' : 'Regions';
+    const rows = placeRows.filter((r) => r[6] === placeMode).sort((a, b) => (counts[b[0]] || 0) - (counts[a[0]] || 0) || b[5] - a[5]).slice(0, 8);
+    topEl.innerHTML = `<div class="place-head"><p class="eyebrow">${placeMode === 'r' ? regionName : 'Cities'} in ${esc(label)}</p>${hasRegions ? `<div class="chips"><button class="chip" type="button" data-pmode="c" aria-pressed="${placeMode === 'c'}">Cities</button><button class="chip" type="button" data-pmode="r" aria-pressed="${placeMode === 'r'}">${regionName}</button></div>` : ''}</div><div class="sticker-row">${rows.map((r, i) => `<button class="sticker" type="button" style="--i:${i}" data-place="${esc(r[0])}"><span class="opt-emoji" aria-hidden="true">${r[6] === 'r' ? '🗺️' : '🏙️'}</span><span>${esc(r[1])}</span><small class="num">${counts[r[0]] ? fmt(counts[r[0]]) : r[6] === 'r' ? 'region' : ''}</small></button>`).join('')}</div><p class="map-fine"><a href="/q/place-${placeCode.toLowerCase()}" data-link>See every city and region as a list</a></p>`;
+  }
+
   // ---------- selecting a country
   let topCont = null;
   function showCard(code, animate = true) {
@@ -155,13 +237,14 @@ export async function mountMap(el, ctx, opts = {}) {
   function selectCountry(code, zoom = true) {
     if (selected) landEl.get(selected)?.classList.remove('is-selected');
     selected = code;
-    if (!code) { card.hidden = true; return; }
+    if (!code) { card.hidden = true; clearPlaces(); drawTop(); return; }
+    if (code !== placeCode) showPlaces(code);
     const c = byCode.get(code);
     const p = landEl.get(code);
     p.classList.add('is-selected');
     lands.appendChild(p); // draw on top so the outline isn't covered by neighbours
     showCard(code);
-    if (c.k && CONTINENT_NAME[c.k]) { topCont = c.k; drawTop(); }
+    if (c.k && CONTINENT_NAME[c.k]) { topCont = c.k; if (!placeRows.length) drawTop(); }
     if (zoom) {
       view = 'country';
       el.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
@@ -220,6 +303,8 @@ export async function mountMap(el, ctx, opts = {}) {
   svg.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hideTip(); });
   svg.addEventListener('click', (e) => {
     if (justDragged) return;
+    const dot = e.target.closest('.dot');
+    if (dot) { selectPlace(dot.dataset.id); return; }
     const land = e.target.closest('.land');
     if (!land) { selectCountry(null); return; }
     selectCountry(land.dataset.c === selected ? null : land.dataset.c);
@@ -234,6 +319,16 @@ export async function mountMap(el, ctx, opts = {}) {
 
   function hover(e) {
     if (e.pointerType !== 'mouse' || dragging) return;
+    const dotH = e.target.closest?.('.dot');
+    if (dotH) {
+      const [, name, sub, , , , g] = placeRow(dotH.dataset.id);
+      const c = placeCounts()[dotH.dataset.id] || 0;
+      tip.innerHTML = `<span class="opt-emoji" aria-hidden="true">${g === 'r' ? '🗺️' : '🏙️'}</span><span><strong>${esc(name)}</strong><small>${esc(sub || 'region')} · ${c ? fmt(c) + ' votes' : 'no votes yet'}</small></span>`;
+      tip.hidden = false;
+      const r0 = stage.getBoundingClientRect();
+      tip.style.transform = `translate(${Math.max(8, Math.min(r0.width - tip.offsetWidth - 8, e.clientX - r0.left + 14))}px, ${Math.max(8, e.clientY - r0.top - tip.offsetHeight - 12)}px)`;
+      return;
+    }
     const land = e.target.closest?.('.land');
     if (!land) return hideTip();
     const code = land.dataset.c;
@@ -271,6 +366,20 @@ export async function mountMap(el, ctx, opts = {}) {
       return;
     }
     if (e.target.closest('.map-card-x')) return selectCountry(null);
+    const pm = e.target.closest('[data-pmode]');
+    if (pm) { placeMode = pm.dataset.pmode; placeSel = null; drawPlaces(); return; }
+    const pl = e.target.closest('[data-place]');
+    if (pl) { stage.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return selectPlace(pl.dataset.place); }
+    const vp = e.target.closest('[data-vote-place]');
+    if (vp) {
+      vp.disabled = true;
+      try {
+        placeDetail = await ctx.vote(placeQid(), vp.dataset.votePlace);
+        drawPlaces(); selectPlace(vp.dataset.votePlace);
+        ctx.celebrate?.(e.clientX, e.clientY);
+      } catch (err) { ctx.toast?.(err.message); vp.disabled = false; }
+      return;
+    }
     const pick = e.target.closest('[data-pick]');
     if (pick) { stage.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); selectCountry(pick.dataset.pick); }
   });
