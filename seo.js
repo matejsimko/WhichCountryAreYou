@@ -12,6 +12,8 @@ const pct = (n, t) => (t ? Math.round((n / t) * 1000) / 10 : 0);
 const fmt = (n) => Number(n).toLocaleString('en-US');
 const today = () => new Date().toISOString().slice(0, 10);
 
+export const MIN_INDEX_VOTES = 5; // country and city pages with fewer votes than this are thin content: keep them out of the index until they grow
+
 export function createSeo({ SITE_URL, QUESTIONS, CATEGORIES, PLACES, getQuestion, countryLabel, db }) {
   const NAME = 'Which Country Are You?';
   const memo = new Map();
@@ -93,6 +95,14 @@ export function createSeo({ SITE_URL, QUESTIONS, CATEGORIES, PLACES, getQuestion
     return { schema, body: body ? `<div id="ssr" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">${body}</div>` : '' };
   }
 
+  // Country votes (from /c/xx) and city votes (place-xx questions) per page, one cached read
+  const thinStats = () => cached('thin', 300_000, async () => { const all = await db.allCounts(); const sum = (id) => Object.values(all[id] || {}).reduce((a, b) => a + b, 0); const c = all.country || {}; return { country: (cc) => c[cc.toUpperCase()] || 0, place: (id) => sum(id) }; });
+  async function indexable(pathname) {
+    const cm = /^\/c\/([a-z]{2})\/?$/.exec(pathname); if (cm) return (await thinStats()).country(cm[1]) >= MIN_INDEX_VOTES;
+    const pm = /^\/q\/(place-[a-z]{2})\/?$/.exec(pathname); if (pm) return (await thinStats()).place(pm[1]) >= MIN_INDEX_VOTES;
+    return true;
+  }
+
   const robots = () => [
     '# Everyone is welcome, including search engines and AI assistants. Cite us and link to https://whichcountryareyou.com',
     'User-agent: *', 'Allow: /', 'Allow: /api/questions', 'Disallow: /admin', 'Disallow: /api/', '',
@@ -100,12 +110,12 @@ export function createSeo({ SITE_URL, QUESTIONS, CATEGORIES, PLACES, getQuestion
     `Sitemap: ${SITE_URL}/sitemap.xml`, '',
   ].join('\n');
 
-  const sitemap = () => {
-    const d = today();
+  const sitemap = async () => {
+    const d = today(); const st = await thinStats();
     const pages = [['/', 1], ['/explore', 0.9], ['/map', 0.8], ['/about', 0.5]];
     const qs = QUESTIONS.map((q) => [`/q/${q.id}`, 0.8]);
-    const cs = QUESTIONS[0].options.map((o) => [`/c/${o.id.toLowerCase()}`, 0.7]);
-    const ps = Object.keys(PLACES).map((cc) => [`/q/place-${cc.toLowerCase()}`, 0.4]);
+    const cs = QUESTIONS[0].options.filter((o) => st.country(o.id) >= MIN_INDEX_VOTES).map((o) => [`/c/${o.id.toLowerCase()}`, 0.7]);
+    const ps = Object.keys(PLACES).filter((cc) => st.place('place-' + cc.toLowerCase()) >= MIN_INDEX_VOTES).map((cc) => [`/q/place-${cc.toLowerCase()}`, 0.4]);
     return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${[...pages, ...qs, ...cs, ...ps].map(([u, p]) => `<url><loc>${SITE_URL}${u}</loc><lastmod>${d}</lastmod><priority>${p}</priority></url>`).join('')}</urlset>`;
   };
 
@@ -146,5 +156,5 @@ Each country has a page that compares how its people vote with everyone else, at
     return out.join('\n');
   }
 
-  return { pageExtras, robots, sitemap, llms, llmsFull, cached };
+  return { pageExtras, indexable, robots, sitemap, llms, llmsFull, cached };
 }

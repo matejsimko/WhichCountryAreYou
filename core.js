@@ -355,14 +355,16 @@ async function metaFor(pathname) {
 }
 
 async function sendShell(res, pathname, status = 200) {
-  const noindex = /^\/admin\/?$/.test(pathname);
+  let noindex = /^\/admin\/?$/.test(pathname);
+  let thin = false;
+  try { thin = status === 200 && !(await seo.indexable(pathname)); } catch { /* index it */ }
   let meta = '<title>Which Country Are You?</title>';
   try { meta = await metaFor(pathname); } catch (err) { console.error('meta failed', err); } // a DB hiccup must not blank the page
   const analytics = process.env.VERCEL ? '<script defer src="/_vercel/insights/script.js"></script>' : '';
   let extras = { schema: '', body: '' };
   if (status === 200 && !noindex) { try { extras = await seo.pageExtras(pathname.replace(/\/$/, '') || '/'); } catch (err) { console.error('seo failed', err); } }
-  const html = fs.readFileSync(TEMPLATE, 'utf8').replace('<!--META-->', meta + extras.schema).replace('<main id="app" tabindex="-1"></main>', `<main id="app" tabindex="-1">${extras.body}</main>`).replace('<!--ANALYTICS-->', analytics);
-  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache', ...(noindex ? { 'x-robots-tag': 'noindex, nofollow' } : {}) });
+  const html = fs.readFileSync(TEMPLATE, 'utf8').replace('<!--META-->', (thin ? meta.replace(/<meta name="robots"[^>]*>/, '<meta name="robots" content="noindex,follow">') : meta) + extras.schema).replace('<main id="app" tabindex="-1"></main>', `<main id="app" tabindex="-1">${extras.body}</main>`).replace('<!--ANALYTICS-->', analytics);
+  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache', ...(noindex ? { 'x-robots-tag': 'noindex, nofollow' } : thin ? { 'x-robots-tag': 'noindex, follow' } : {}) });
   res.end(html);
 }
 
@@ -382,7 +384,7 @@ export async function handle(req, res) {
 
     const text = (body, type = 'text/plain; charset=utf-8', age = 3600) => { res.writeHead(200, { 'content-type': type, 'cache-control': `public, max-age=${age}, s-maxage=${age}` }); res.end(body); };
     if (pathname === '/robots.txt') return text(seo.robots());
-    if (pathname === '/sitemap.xml') return text(seo.sitemap(), 'application/xml; charset=utf-8');
+    if (pathname === '/sitemap.xml') return text(await seo.sitemap(), 'application/xml; charset=utf-8');
     if (pathname === '/llms.txt') return text(seo.llms());
     if (pathname === '/llms-full.txt') return text(await seo.llmsFull(), 'text/plain; charset=utf-8', 600);
     if (pathname === `/${INDEXNOW_KEY}.txt`) return text(INDEXNOW_KEY);
