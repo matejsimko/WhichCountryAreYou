@@ -85,7 +85,7 @@ export async function mountMap(el, ctx, opts = {}) {
   let view = 'world';
   let selected = null;
 
-  function measure() { const r = stage.getBoundingClientRect(); aspect = r.width / Math.max(1, r.height); return r; }
+  function measure() { const r = stage.getBoundingClientRect(); if (r.width > 1 && r.height > 1) aspect = r.width / r.height; return r; }
   function fit(box, pad = 1.08) {
     const bw = box[2] * pad, bh = box[3] * pad;
     const w = bw / bh > aspect ? bw : bh * aspect;
@@ -99,13 +99,14 @@ export async function mountMap(el, ctx, opts = {}) {
     return { x: cx - w / 2, y: cy - h / 2, w, h };
   }
   function render() {
+    if (!stage.clientWidth || !Number.isFinite(vb.w) || !Number.isFinite(vb.h) || !Number.isFinite(vb.x) || !Number.isFinite(vb.y)) return;
     svg.setAttribute('viewBox', `${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`);
     stage.classList.toggle('is-zoomed', vb.w < fit(world).w * 0.85);
     placePin();
     scaleDots();
   }
   function placePin() {
-    if (pin.hasAttribute('hidden') || !pin.dataset.x) return;
+    if (pin.hasAttribute('hidden') || !pin.dataset.x || !stage.clientWidth) return;
     const s = vb.w / stage.clientWidth; // keep the pin the same size on screen
     pin.setAttribute('transform', `translate(${pin.dataset.x} ${pin.dataset.y}) scale(${s})`);
   }
@@ -195,7 +196,7 @@ export async function mountMap(el, ctx, opts = {}) {
     drawPlaceTop();
   }
   function scaleDots() {
-    if (!dotEls.length) return;
+    if (!dotEls.length || !stage.clientWidth) return;
     const s = vb.w / stage.clientWidth;
     for (const d of dotEls) d.setAttribute('r', (d._r * s).toFixed(3));
     for (const t of labelEls) { t.style.fontSize = `${(12 * s).toFixed(3)}px`; t.setAttribute('dx', (9 * s).toFixed(3)); t.setAttribute('dy', (4 * s).toFixed(3)); t.style.strokeWidth = `${(3.5 * s).toFixed(3)}px`; }
