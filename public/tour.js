@@ -68,12 +68,13 @@ export function initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast }) {
   }
 
   // our own smooth scroll, so nothing (CSS scroll-behavior, lazy content) can cancel it
-  function scrollToTarget(t) {
+  function scrollToTarget(t, retry = false) {
     cancelAnimationFrame(scrollAnim);
-    if (t.closest('.top, .tabbar, .guide, .toast')) return; // fixed things are always in view
+    if (t.closest('.tabbar, .guide, .toast')) return; // fixed things are always in view
     const r = t.getBoundingClientRect();
     const tall = r.height > innerHeight * 0.6;
-    const wanted = tall ? window.scrollY + r.top - 100 : window.scrollY + r.top - (innerHeight - r.height) / 2 + (innerWidth <= 640 ? -50 : 20);
+    // the header scrolls away with the page, so bring the page back to the top for its links
+    const wanted = t.closest('.top') ? 0 : tall ? window.scrollY + r.top - 100 : window.scrollY + r.top - (innerHeight - r.height) / 2 + (innerWidth <= 640 ? -50 : 20);
     const max = document.documentElement.scrollHeight - innerHeight;
     const to = Math.max(0, Math.min(max, wanted));
     const from = window.scrollY;
@@ -85,17 +86,29 @@ export function initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast }) {
     const step = (now) => {
       const k = Math.min(1, (now - t0) / dur);
       window.scrollTo(0, lerp(from, to, ease(k)));
-      if (k < 1) scrollAnim = requestAnimationFrame(step); else document.documentElement.style.scrollBehavior = prev;
+      if (k < 1) scrollAnim = requestAnimationFrame(step);
+      else { document.documentElement.style.scrollBehavior = prev; if (!retry) setTimeout(() => { if (active && target === t) scrollToTarget(t, true); }, 350); }
     };
     scrollAnim = requestAnimationFrame(step);
   }
 
-  function show(n) {
+  let showId = 0;
+  async function ready(t) {
+    // the map loads when it scrolls into view and then grows; wait until it has its real size
+    if (t.id !== 'map-slot' || t.querySelector('.map-stage')) return;
+    scrollToTarget(t);
+    for (let k = 0; k < 40 && !t.querySelector('.map-stage'); k++) await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  async function show(n) {
+    const id = ++showId;
     i = n;
     const step = STEPS[i];
     const t = step.find();
+    if (t) { await ready(t); if (id !== showId || !active) return; }
     if (!t) { return i < STEPS.length - 1 ? show(i + 1) : finish(); }
     const last = i === STEPS.length - 1;
+    if (!card) return;
     card.innerHTML = `
       <div class="tour-head"><div class="tour-pinny" aria-hidden="true">${pinnySVG()}</div><div><p class="eyebrow">Step ${i + 1} of ${STEPS.length}</p><strong class="tour-title">${esc(step.title)}</strong></div></div>
       <p class="tour-text">${esc(step.text)}</p>
