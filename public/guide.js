@@ -77,7 +77,11 @@ export function initGuide(ctx) {
   }
 
   // ---------- the pinny on the landing page hill
-  let homePin = null, homeVisible = false, forceFloat = false, hillIO;
+  let homePin = null, homeVisible = false, hillSeen = false, forceFloat = false, hillIO;
+  const nearTop = () => scrollY < (mode === 'home' ? 70 : 30); // leaves the hill after ~70px of scrolling, comes back near the very top
+  const updateHome = () => { homeVisible = hillSeen && nearTop(); syncMode(); };
+  let scrollTick = 0;
+  addEventListener('scroll', () => { if (!homePin || scrollTick) return; scrollTick = requestAnimationFrame(() => { scrollTick = 0; updateHome(); }); }, { passive: true });
   const homeRect = () => homePin?.getBoundingClientRect();
   function homeSpotFromHill() {
     const r = homeRect();
@@ -93,8 +97,14 @@ export function initGuide(ctx) {
       const from = homeSpotFromHill();
       mode = 'float';
       setPos(from);
+      el.style.visibility = 'visible';
       homePin.style.visibility = 'hidden';
-      await flyTo(homeSpot(), { ms: 1500, spin: 1 });
+      busy = true;
+      // a quick crouch before the jump
+      if (!reduce()) { sfx.squeak(1); await btn.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12, .8)', offset: 0.6 }, { transform: 'scale(.92, 1.14)' }], { duration: 260, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {}); }
+      busy = false;
+      btn.getAnimations().forEach((a) => a.cancel());
+      await flyTo(homeSpot(), { ms: 1500, spin: 1, arc: 130 });
       if (current && !bubbleOpen() && !offering) say(tipOf(current), 3200);
     } else {
       // he flies back to the hill
@@ -172,7 +182,7 @@ export function initGuide(ctx) {
     // the hill Pinny only exists on the landing page
     hillIO?.disconnect();
     homePin = document.querySelector('.hills .pinny');
-    homeVisible = false;
+    homeVisible = false; hillSeen = false;
     if (homePin) {
       // on the landing page he starts out sitting on the hill; the observer decides when he takes off
       mode = 'home';
@@ -206,8 +216,8 @@ export function initGuide(ctx) {
     targets.forEach((t) => io.observe(t));
   }
   function onHill(entries) {
-    for (const e of entries) homeVisible = e.isIntersecting && e.intersectionRatio > 0.4;
-    syncMode();
+    for (const e of entries) hillSeen = e.isIntersecting && e.intersectionRatio > 0.25;
+    updateHome();
   }
 
   // ---------- falls asleep, and does silly things now and then
