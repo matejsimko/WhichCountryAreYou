@@ -43,6 +43,7 @@ export function initGuide(ctx) {
   addEventListener('resize', () => { if (!busy && mode === 'float') setPos(homeSpot()); });
 
   // smooth motion: sample a function of time into many keyframes so paths are curves, not polylines
+  const lerp = (a, b, t) => a + (b - a) * t;
   const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
   const bump = (t) => Math.sin(Math.PI * t);
   const smooth = (t) => t * t * (3 - 2 * t);
@@ -56,23 +57,42 @@ export function initGuide(ctx) {
   }
   const LIN = { easing: 'linear', composite: 'replace' };
 
-  // flies along a curve, tilting into the turn and spinning, then lands with a squish
-  function flyTo(to, { ms = 1300, spin = 1, arc = 110 } = {}) {
+  // flies along a curve, tilting into the turn and spinning, then lands with a squish.
+  // scaleFrom/scaleTo morph his size on the way (used to match the hill Pinny); anticipate = crouch, then launch with a stretch.
+  function flyTo(to, { ms = 1300, spin = 1, arc = 110, scaleFrom = 1, scaleTo = 1, anticipate = false, landSquish = true } = {}) {
     const from = { ...cur };
     busy = true;
     if (reduce()) { setPos(to); busy = false; return Promise.resolve(); }
+    const hold = anticipate ? 0.16 : 0; // fraction of the time spent crouching in place
     const cx = (from.x + to.x) / 2 + rnd(-40, 40), cy = Math.min(from.y, to.y) - arc;
     const P = (t) => { const e = easeIO(t); return { x: (1 - e) * (1 - e) * from.x + 2 * (1 - e) * e * cx + e * e * to.x, y: (1 - e) * (1 - e) * from.y + 2 * (1 - e) * e * cy + e * e * to.y }; };
+    const prog = (t) => (t < hold ? 0 : (t - hold) / (1 - hold));
     el.style.visibility = 'visible';
-    wings(true); trail(true);
-    const a = el.animate(sample((t) => { const p = P(t); return { x: p.x, y: p.y }; }, 56).map((k) => ({ transform: k.transform.replace(/ rotate.*$/, '') })), { duration: ms, ...LIN });
-    // body: bank into the direction of travel, plus an optional full spin
+    if (!anticipate) { wings(true); trail(true); } else setTimeout(() => { wings(true); trail(true); }, ms * hold);
+    const pos = [];
+    for (let i = 0; i <= 64; i++) { const p = P(prog(i / 64)); pos.push({ transform: `translate(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px)` }); }
+    const a = el.animate(pos, { duration: ms, ...LIN });
+    // body: size morph + squash/stretch, bank into the turn, optional full spin
     const dir = Math.sign(to.x - from.x) || 1;
-    btn.animate(sample((t) => ({ r: spin * 360 * easeIO(t) + dir * 12 * bump(t), s: 1 + 0.1 * bump(t) }), 56), { duration: ms, ...LIN });
+    const body = [];
+    for (let i = 0; i <= 64; i++) {
+      const t = i / 64, pt = prog(t);
+      const base = lerp(scaleFrom, scaleTo, easeIO(pt));
+      let sx = 1, sy = 1;
+      if (anticipate) {
+        if (t < hold) { const k = t / hold; sx = 1 + 0.14 * k; sy = 1 - 0.22 * k; }
+        else if (t < hold * 1.9) { const k = (t - hold) / (hold * 0.9); sx = 1.14 - 0.24 * k; sy = 0.78 + 0.4 * k; }
+        else { const k = easeIO(Math.min(1, (t - hold * 1.9) / 0.35)); sx = lerp(0.9, 1, k); sy = lerp(1.18, 1, k); }
+      }
+      const r = spin * 360 * easeIO(pt) + dir * 12 * bump(pt);
+      const s = 1 + 0.08 * bump(pt);
+      body.push({ transform: `rotate(${r.toFixed(2)}deg) scale(${(base * s * sx).toFixed(3)}, ${(base * s * sy).toFixed(3)})` });
+    }
+    btn.animate(body, { duration: ms, ...LIN });
     sfx.whoosh();
     return a.finished.catch(() => {}).then(() => {
       setPos(to); busy = false; wings(false); trail(false);
-      btn.animate([{ transform: 'scale(1.14, .86)' }, { transform: 'scale(.94, 1.08)', offset: 0.45 }, { transform: 'scale(1)' }], { duration: 520, easing: 'cubic-bezier(.3,1.4,.5,1)' });
+      if (landSquish) btn.animate([{ transform: `scale(${scaleTo * 1.14}, ${scaleTo * 0.86})` }, { transform: `scale(${scaleTo * 0.94}, ${scaleTo * 1.08})`, offset: 0.45 }, { transform: `scale(${scaleTo})` }], { duration: 520, easing: 'cubic-bezier(.3,1.4,.5,1)' });
     });
   }
 
@@ -83,36 +103,41 @@ export function initGuide(ctx) {
   let scrollTick = 0;
   addEventListener('scroll', () => { if (!homePin || scrollTick) return; scrollTick = requestAnimationFrame(() => { scrollTick = 0; updateHome(); }); }, { passive: true });
   const homeRect = () => homePin?.getBoundingClientRect();
+  // where the floating Pinny must stand to sit exactly over the hill Pinny, and how much to scale him so they match
+  const hitRect = (root) => root?.querySelector('.p-hit')?.getBoundingClientRect();
   function homeSpotFromHill() {
-    const r = homeRect();
+    const r = hitRect(homePin) || homeRect();
     const [w, h] = size();
-    return r ? { x: r.left + r.width / 2 - w / 2, y: r.bottom - h + 6 } : homeSpot();
+    return r ? { x: r.left + r.width / 2 - w / 2, y: r.top + r.height / 2 - h / 2 } : homeSpot();
+  }
+  function hillScale() {
+    const hr = hitRect(homePin), gr = hitRect(pin);
+    return hr && gr && gr.width > 0 ? Math.max(0.5, Math.min(1.6, hr.width / gr.width)) : 1;
   }
   async function syncMode() {
     if (hidden || busy) return;
     const want = homePin && homeVisible && !forceFloat ? 'home' : 'float';
     if (want === mode) return;
     if (want === 'float') {
-      // he jumps off the hill and flies to the corner
-      const from = homeSpotFromHill();
+      // he crouches on the hill, jumps off, and grows into his normal size while flying to the corner
       mode = 'float';
-      setPos(from);
+      const k = hillScale();
+      setPos(homeSpotFromHill());
       el.style.visibility = 'visible';
-      homePin.style.visibility = 'hidden';
-      busy = true;
-      // a quick crouch before the jump
-      if (!reduce()) { sfx.squeak(1); await btn.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12, .8)', offset: 0.6 }, { transform: 'scale(.92, 1.14)' }], { duration: 260, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {}); }
-      busy = false;
-      btn.getAnimations().forEach((a) => a.cancel());
-      await flyTo(homeSpot(), { ms: 1500, spin: 1, arc: 130 });
+      btn.style.transform = `scale(${k})`;
+      homePin.style.visibility = 'hidden'; // swapped on the same frame, same size, same spot
+      await flyTo(homeSpot(), { ms: 2000, spin: 1, arc: 140, scaleFrom: k, scaleTo: 1, anticipate: true });
+      btn.style.transform = '';
       if (current && !bubbleOpen() && !offering) say(tipOf(current), 3200);
     } else {
       // he flies back to the hill
       mode = 'home';
       bubble.hidden = true; panel.hidden = true;
-      await flyTo(homeSpotFromHill(), { ms: 1100, spin: -1, arc: 70 });
+      const k = hillScale();
+      await flyTo(homeSpotFromHill(), { ms: 1300, spin: -1, arc: 80, scaleFrom: 1, scaleTo: k, landSquish: false });
       homePin.style.visibility = '';
       el.style.visibility = 'hidden';
+      btn.style.transform = '';
     }
   }
 
