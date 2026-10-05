@@ -347,8 +347,8 @@ async function metaFor(pathname) {
 <meta name="description" content="${esc(desc)}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="Which Country Are You?">
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(url)}">
-<meta property="og:image" content="${SITE_URL}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${SITE_URL}/og.png"><meta name="twitter:title" content="${esc(title)}"><meta name="twitter:description" content="${esc(desc)}">
+<meta property="og:image" content="${SITE_URL}/og.png"><meta property="og:image:secure_url" content="${SITE_URL}/og.png"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Which country are you? Flags on a string above the title, paper hills and Pinny the map pin."><meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content="@simkomatej"><meta name="twitter:creator" content="@simkomatej"><meta name="twitter:image:alt" content="Which country are you? Flags on a string above the title, paper hills and Pinny the map pin."><meta name="twitter:image" content="${SITE_URL}/og.png"><meta name="twitter:title" content="${esc(title)}"><meta name="twitter:description" content="${esc(desc)}">
 <link rel="canonical" href="${esc(url)}">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
 <meta name="author" content="Matej Simko"><link rel="alternate" type="text/plain" href="${SITE_URL}/llms.txt" title="llms.txt">`;
