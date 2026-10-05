@@ -24,6 +24,26 @@ const SCHEMA = [
   ) WITHOUT ROWID`,
   'CREATE INDEX IF NOT EXISTS votes_ip ON votes (question_id, ip_hash)',
   'CREATE INDEX IF NOT EXISTS votes_device ON votes (device_id)',
+  // first-party analytics: pageviews, time on page and product events. No IPs, no cookies, no raw user agents.
+  `CREATE TABLE IF NOT EXISTS ev (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts      INTEGER NOT NULL,
+    day     TEXT NOT NULL,
+    kind    TEXT NOT NULL,   -- pv = pageview, ev = event, dur = time on page
+    name    TEXT,            -- event name
+    vh      TEXT NOT NULL,   -- anonymous visitor hash, changes every day
+    path    TEXT,
+    entry   INTEGER NOT NULL DEFAULT 0, -- 1 = first page of a visit (landing)
+    ref     TEXT,            -- referrer host
+    utm_s   TEXT, utm_m TEXT, utm_c TEXT,
+    country TEXT, region TEXT, city TEXT,
+    device  TEXT, browser TEXT, os TEXT, lang TEXT, sw INTEGER,
+    dur     INTEGER,
+    props   TEXT
+  )`,
+  'CREATE INDEX IF NOT EXISTS ev_day_kind ON ev (day, kind)',
+  'CREATE INDEX IF NOT EXISTS ev_name ON ev (name, day)',
+  'CREATE INDEX IF NOT EXISTS ev_vh ON ev (vh, ts)',
   // running tally, so reads never scan the votes table
   `CREATE TABLE IF NOT EXISTS counts (
     question_id TEXT NOT NULL,

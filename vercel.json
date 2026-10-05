@@ -31,6 +31,10 @@
       "destination": "/api/index?route=profile"
     },
     {
+      "source": "/admin",
+      "destination": "/api/index?route=admin"
+    },
+    {
       "source": "/about",
       "destination": "/api/index?route=about"
     },

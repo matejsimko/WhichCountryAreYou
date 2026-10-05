@@ -10,6 +10,7 @@ const reduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+const emit = (name, props) => dispatchEvent(new CustomEvent('wcay:track', { detail: { name, props } }));
 export function initGuide(ctx) {
   const { pinnySVG, esc, flagImg, level, fmtTime, getMe, evaluate, getList, mineMap, go, confetti, ACHIEVEMENTS, startTour, tourActive, tourState, tipFor, lineFor } = ctx;
 
@@ -300,6 +301,7 @@ export function initGuide(ctx) {
       if (!a) return;
       bubble.hidden = true; bubble.classList.remove('has-actions'); bubble.onclick = null; mood('happy');
       offering = false;
+      emit('tour_offer', { a });
       if (a === 'yes') { forceFloat = true; startTour(); } else { forceFloat = false; try { localStorage.setItem('wcay_tour', 'skipped'); } catch { /* ignore */ } say('OK! Tap me later.', 3000); syncMode(); }
     };
   }
@@ -363,6 +365,7 @@ export function initGuide(ctx) {
 
   btn.addEventListener('click', () => {
     if (busy || justDragged) return;
+    emit('pinny_click');
     sfx.squeak(4);
     btn.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-26px) scale(.95,1.08)', offset: 0.4 }, { transform: 'translateY(0) scale(1.08,.92)', offset: 0.75 }, { transform: 'none' }], { duration: 600, easing: 'cubic-bezier(.3,1.5,.5,1)' });
     if (!panel.hidden) return closePanel();
@@ -372,9 +375,9 @@ export function initGuide(ctx) {
   });
   panel.addEventListener('click', (e) => {
     if (e.target.closest('.panel-x')) closePanel();
-    if (e.target.closest('[data-open]')) iris();
-    if (e.target.closest('[data-tour]')) { closePanel(); forceFloat = true; startTour(); }
-    if (e.target.closest('[data-away]')) { hidden = true; el.hidden = true; if (homePin) homePin.style.visibility = ''; try { localStorage.setItem(KEY, 'off'); } catch { /* ignore */ } }
+    if (e.target.closest('[data-open]')) { emit('pinny_passport'); iris(); }
+    if (e.target.closest('[data-tour]')) { emit('pinny_tour'); closePanel(); forceFloat = true; startTour(); }
+    if (e.target.closest('[data-away]')) { emit('pinny_away'); hidden = true; el.hidden = true; if (homePin) homePin.style.visibility = ''; try { localStorage.setItem(KEY, 'off'); } catch { /* ignore */ } }
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !panel.hidden) closePanel(); });
   document.addEventListener('pointerdown', (e) => { if (!panel.hidden && !e.target.closest('.guide')) closePanel(); });
@@ -415,6 +418,7 @@ export function initGuide(ctx) {
     if (!drag || e.pointerId !== drag.id) return;
     const moved = drag.moved;
     drag = null;
+    if (moved) emit('pinny_drag');
     fly.style.transform = '';
     el.classList.remove('held');
     if (!moved) return;

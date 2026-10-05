@@ -7,6 +7,7 @@ const CONTINENT_NAME = { EU: 'Europe', AS: 'Asia', AF: 'Africa', NA: 'North Amer
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+const emit = (name, props) => dispatchEvent(new CustomEvent('wcay:track', { detail: { name, props } }));
 export async function mountMap(el, ctx, opts = {}) {
   const { esc, fmt, pctText, flagImg } = ctx;
   const [data, list] = await Promise.all([fetch('/map.json').then((r) => r.json()), ctx.getList()]);
@@ -239,6 +240,7 @@ export async function mountMap(el, ctx, opts = {}) {
     if (selected) landEl.get(selected)?.classList.remove('is-selected');
     selected = code;
     if (!code) { card.hidden = true; clearPlaces(); drawTop(); return; }
+    emit('map_country', { c: code });
     if (code !== placeCode) showPlaces(code);
     const c = byCode.get(code);
     const p = landEl.get(code);
@@ -361,6 +363,7 @@ export async function mountMap(el, ctx, opts = {}) {
     const q = e.target.closest('[data-q]');
     if (q && q.dataset.q !== qid) {
       qid = q.dataset.q;
+      emit('map_question', { q: qid });
       el.querySelectorAll('[data-q]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.q === qid));
       detail = await ctx.getDetail(qid, true);
       paint();

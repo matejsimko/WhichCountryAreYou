@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { QUESTIONS, CATEGORIES, FEATURED, questionById } from './questions.js';
 import * as db from './db.js';
+import * as analytics from './analytics.js';
 
 const TEMPLATE = fileURLToPath(new URL('./templates/index.html', import.meta.url));
 const PLACES = JSON.parse(fs.readFileSync(fileURLToPath(new URL('./public/places.json', import.meta.url)), 'utf8')); // built by scripts/build-places.js
@@ -122,6 +123,36 @@ function summary(q, counts, mine) {
 }
 const detail = (q, counts, mine) => ({ ...summary(q, counts, mine), options: q.options, counts });
 
+
+// ---------- admin access: one secret (ADMIN_TOKEN), checked with a signed cookie
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || (process.env.VERCEL ? '' : 'dev-admin'); // empty = admin is switched off
+const adminCookieValue = () => crypto.createHmac('sha256', SECRET).update('admin:' + ADMIN_TOKEN).digest('hex');
+const safeEq = (a, b) => { const x = crypto.createHash('sha256').update(String(a)).digest(), y = crypto.createHash('sha256').update(String(b)).digest(); return crypto.timingSafeEqual(x, y); };
+function isAdmin(req) {
+  if (!ADMIN_TOKEN) return false;
+  const m = /(?:^|;\s*)wcay_admin=([a-f0-9]{64})/.exec(req.headers.cookie || '');
+  return Boolean(m) && safeEq(m[1], adminCookieValue());
+}
+const trackHits = new Map();
+function trackLimited(ip) { // someone hammering /api/t must not fill the database
+  const now = Date.now();
+  let b = trackHits.get(ip);
+  if (!b || now > b.reset) trackHits.set(ip, (b = { n: 0, reset: now + 60_000 }));
+  if (trackHits.size > 5000) for (const [k2, v] of trackHits) if (now > v.reset) trackHits.delete(k2);
+  return ++b.n > 120; // events per minute per network
+}
+const loginTries = new Map();
+function loginLimited(ip) {
+  const now = Date.now();
+  const t = (loginTries.get(ip) || []).filter((x) => now - x < 10 * 60_000);
+  t.push(now); loginTries.set(ip, t);
+  return t.length > 8; // 8 attempts per 10 minutes per network
+}
+const geoOf = (req) => {
+  const h = (n) => { const v = req.headers[n]; if (!v) return null; try { return decodeURIComponent(String(v)).slice(0, 60); } catch { return null; } };
+  return { country: h('x-vercel-ip-country'), region: h('x-vercel-ip-country-region'), city: h('x-vercel-ip-city') };
+};
+
 // ---------- API
 async function api(req, res, p) {
   if (req.method === 'GET' && p === '/api/questions') {
@@ -133,6 +164,52 @@ async function api(req, res, p) {
     const answers = questions.reduce((a, q) => a + q.total, 0);
     const placeMine = Object.fromEntries(Object.entries(mine).filter(([id]) => id.startsWith('place-')));
     return json(res, 200, { questions, categories: CATEGORIES, featured: FEATURED, placeCountries: Object.keys(PLACES).map((c) => c.toLowerCase()), placeMine, stats: { answers, countries, questions: questions.length } });
+  }
+
+
+  // ----- analytics collection (cookieless, always answers 204 so it never disturbs the page)
+  if (req.method === 'POST' && p === '/api/t') {
+    if (trackLimited(getIp(req))) { res.writeHead(204); return res.end(); }
+    try {
+      const body = await readBody(req, 2500);
+      const host = String(req.headers.host || '').replace(/^www\./, '').split(':')[0];
+      await analytics.collect({ body, ua: String(req.headers['user-agent'] || ''), ip: getIp(req), geo: geoOf(req), secret: SECRET, siteHosts: [host, new URL(SITE_URL).hostname.replace(/^www\./, '')], dnt: req.headers.dnt === '1' });
+    } catch { /* analytics must never break the site */ }
+    res.writeHead(204, { 'cache-control': 'no-store' });
+    return res.end();
+  }
+
+  // ----- admin
+  if (p.startsWith('/api/admin/')) {
+    if (req.method === 'POST') {
+      const origin = req.headers.origin;
+      if (origin && new URL(origin).host !== req.headers.host) return json(res, 403, { error: 'Cross-site requests are not allowed.' });
+    }
+    if (p === '/api/admin/me') return json(res, 200, { configured: Boolean(ADMIN_TOKEN), admin: isAdmin(req) });
+    if (p === '/api/admin/login' && req.method === 'POST') {
+      if (!ADMIN_TOKEN) return json(res, 503, { error: 'Admin is switched off. Set ADMIN_TOKEN in the environment variables and redeploy.' });
+      if (loginLimited(getIp(req))) return json(res, 429, { error: 'Too many attempts. Try again in a few minutes.' });
+      let body; try { body = await readBody(req); } catch { return json(res, 400, { error: 'Bad request.' }); }
+      if (!safeEq(body.token || '', ADMIN_TOKEN)) return json(res, 401, { error: 'Wrong key.' });
+      const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+      res.setHeader('Set-Cookie', `wcay_admin=${adminCookieValue()}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Strict${secure}`);
+      return json(res, 200, { ok: true });
+    }
+    if (p === '/api/admin/logout' && req.method === 'POST') {
+      res.setHeader('Set-Cookie', 'wcay_admin=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict');
+      return json(res, 200, { ok: true });
+    }
+    if (!isAdmin(req)) return json(res, 401, { error: 'Not signed in.' });
+    const url = new URL(req.url, 'http://localhost');
+    const days = [1, 7, 14, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 7;
+    if (p === '/api/admin/stats' && req.method === 'GET') return json(res, 200, await analytics.stats(days));
+    if (p === '/api/admin/live' && req.method === 'GET') return json(res, 200, await analytics.liveNow());
+    if (p === '/api/admin/export' && req.method === 'GET') {
+      const csv = await analytics.exportCsv(days);
+      res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="wcay-events-${days}d.csv"`, 'cache-control': 'no-store' });
+      return res.end(csv);
+    }
+    return json(res, 404, { error: 'Not found.' });
   }
 
   if (req.method === 'GET' && p === '/api/health') {
@@ -246,11 +323,12 @@ async function metaFor(pathname) {
 }
 
 async function sendShell(res, pathname, status = 200) {
+  const noindex = /^\/admin\/?$/.test(pathname);
   let meta = '<title>Which Country Are You?</title>';
   try { meta = await metaFor(pathname); } catch (err) { console.error('meta failed', err); } // a DB hiccup must not blank the page
   const analytics = process.env.VERCEL ? '<script defer src="/_vercel/insights/script.js"></script>' : '';
   const html = fs.readFileSync(TEMPLATE, 'utf8').replace('<!--META-->', meta).replace('<!--ANALYTICS-->', analytics);
-  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
+  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache', ...(noindex ? { 'x-robots-tag': 'noindex, nofollow' } : {}) });
   res.end(html);
 }
 
@@ -270,7 +348,7 @@ export async function handle(req, res) {
 
     if (pathname === '/robots.txt') {
       res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
-      return res.end(`User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+      return res.end(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${SITE_URL}/sitemap.xml\n`);
     }
     if (pathname === '/sitemap.xml') {
       const urls = ['/', '/explore', '/map', '/about', ...QUESTIONS.map((q) => `/q/${q.id}`), ...QUESTIONS[0].options.map((o) => `/c/${o.id.toLowerCase()}`)];
@@ -282,7 +360,7 @@ export async function handle(req, res) {
     if (cm2) return await sendShell(res, pathname, countryLabel.has(cm2[1].toUpperCase()) ? 200 : 404);
     const m = /^\/q\/([a-z0-9-]+)\/?$/.exec(pathname);
     if (m && !getQuestion(m[1])) return await sendShell(res, pathname, 404);
-    if (pathname === '/' || m || /^\/(explore|about|map|profile)\/?$/.test(pathname)) return await sendShell(res, pathname);
+    if (pathname === '/' || m || /^\/(explore|about|map|profile|admin)\/?$/.test(pathname)) return await sendShell(res, pathname);
     return await sendShell(res, pathname, 404);
   } catch (err) {
     console.error(err);

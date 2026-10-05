@@ -4,6 +4,7 @@ import { openShare } from './share.js';
 import { initEggs } from './eggs.js';
 import { initGuide } from './guide.js';
 import { initTour, tourState } from './tour.js';
+import { initTracking, pageview } from './track.js';
 import { sfx, initSfx } from './sfx.js';
 
 const app = document.getElementById('app');
@@ -15,6 +16,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const fmt = (n) => n.toLocaleString('en-US');
 const norm = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 const raf2 = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn));
+const emit = (name, props) => dispatchEvent(new CustomEvent('wcay:track', { detail: { name, props } }));
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ARROW = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m0 0-5-5m5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const BACK = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16 10H4m0 0 5-5m-5 5 5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -383,14 +385,15 @@ function mountBlock(el, d, ctx = {}) {
     if (opt && mode === 'vote') return choose(opt.dataset.opt, e);
     if (opt && mode === 'results' && isCountries) return go('/c/' + opt.dataset.opt.toLowerCase());
     const gr = e.target.closest('[data-group]');
-    if (gr) { group = gr.dataset.group; return draw(); }
+    if (gr) { group = gr.dataset.group; emit('filter_group', { g: group || 'all' }); return draw(); }
     const so = e.target.closest('[data-sort]');
-    if (so) { sort = so.dataset.sort; return draw(); }
+    if (so) { sort = so.dataset.sort; emit('sort', { k: sort }); return draw(); }
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'results') { mode = 'results'; draw(); }
     if (act === 'change' || act === 'vote') { mode = 'vote'; reward = null; draw(); }
   });
-  el.querySelector('.block-search')?.addEventListener('input', (e) => { filter = e.target.value.trim(); draw(); });
+  let searched = false;
+  el.querySelector('.block-search')?.addEventListener('input', (e) => { filter = e.target.value.trim(); if (!searched && filter) { searched = true; emit('search', { q: d.id }); } draw(); });
 
   draw();
 }
@@ -611,6 +614,8 @@ function about() {
     <p>Each device gets one vote per question. You can change your answer any time. To keep the numbers from being flooded, a single network can only add a handful of new devices per question each day.</p>
     <h2>What we keep</h2>
     <p>A random ID in a cookie on your device, and your answers. We also keep a one-way hash of your network address that changes every day, so it can't be traced back to you or used to follow you around. No names, no emails, no accounts. Your passport (badges, time here) lives in your browser only.</p>
+    <h2>Counting visits</h2>
+    <p>To learn what works, we count visits with our own simple analytics. It uses no cookies and stores no IP address. A visitor is a one-way hash that changes every day, so nobody can be followed from one day to the next. We see which pages were opened, roughly where from (country and city, as reported by our host), the kind of device and browser, where the link came from, and what people did on the site, such as voting or sharing. If your browser sends "Do Not Track", we don't count you at all.</p>
     <h2>Take it with a grain of salt</h2>
     <p>Anyone can vote and nobody is verified, so this is a game and not a survey. It's still fun to watch the bars move.</p>
     <h2>Flags and credits</h2>
@@ -802,6 +807,7 @@ const routes = [
   [/^\/explore\/?$/, () => explore()],
   [/^\/map\/?$/, () => mapPage()],
   [/^\/profile\/?$/, () => profilePage()],
+  [/^\/admin\/?$/, async () => { setHue(178); document.title = 'Admin'; const m = await import('/admin.js'); await m.mountAdmin(app, { esc, fmt, flagImg }); }],
   [/^\/c\/([a-z]{2})\/?$/, (m) => countryPage(m[1])],
   [/^\/q\/([a-z0-9-]+)\/?$/, (m) => questionPage(m[1])],
   [/^\/about\/?$/, () => about()],
@@ -810,6 +816,7 @@ const routes = [
 const TITLES = { '/': 'Which Country Are You?', '/explore': 'Every question', '/map': 'The map', '/profile': 'Your passport', '/about': 'About' };
 async function render() {
   const path = location.pathname;
+  if (!path.startsWith('/admin')) pageview(path);
   if (!path.startsWith('/q/')) pageQ = null;
   const t = TITLES[path.replace(/\/$/, '') || '/'];
   document.title = t ? (t === 'Which Country Are You?' ? t : `${t} · Which Country Are You?`) : 'Which Country Are You?';
@@ -840,6 +847,7 @@ document.addEventListener('click', (e) => {
 window.addEventListener('popstate', render);
 initFooter();
 startTracking();
+initTracking();
 initSfx();
 initEggs({ toast, confetti });
 let guide = null;

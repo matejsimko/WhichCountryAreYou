@@ -6,9 +6,11 @@ import { renderCard } from './card.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const glyph = (name) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`;
 let open = null;
+const emit = (name, props) => dispatchEvent(new CustomEvent('wcay:track', { detail: { name, props } }));
 
 export function openShare({ title, text, url, toast, card }) {
   closeShare();
+  emit('share_open', { q: (url.split('/q/')[1] || url.split('/c/')[1] || 'home').slice(0, 30) });
   const enc = encodeURIComponent;
   const targets = [
     { id: 'whatsapp', label: 'WhatsApp', bg: '#25D366', href: `https://wa.me/?text=${enc(`${text} ${url}`)}` },
@@ -50,8 +52,8 @@ export function openShare({ title, text, url, toast, card }) {
       const file = new File([blob], 'which-country-are-you.png', { type: 'image/png' });
       const canFile = navigator.canShare?.({ files: [file] });
       el.querySelector('.share-card-box').innerHTML = `<img class="share-card" src="${src}" alt="Your share card"><div class="share-card-actions"><a class="btn alt mini" href="${src}" download="which-country-are-you.png" data-img="save">Save image</a>${canFile ? '<button class="btn mini" type="button" data-img="share">Share image</button>' : ''}</div>`;
-      el.querySelector('[data-img="share"]')?.addEventListener('click', async () => { try { await navigator.share({ files: [file], title, text }); mark('share'); } catch { /* dismissed */ } });
-      el.querySelector('[data-img="save"]')?.addEventListener('click', () => mark('share'));
+      el.querySelector('[data-img="share"]')?.addEventListener('click', async () => { try { await navigator.share({ files: [file], title, text }); emit('share_image', { a: 'share' }); mark('share'); } catch { /* dismissed */ } });
+      el.querySelector('[data-img="save"]')?.addEventListener('click', () => { emit('share_image', { a: 'save' }); mark('share'); });
     });
   }
   async function copy() {
@@ -62,6 +64,7 @@ export function openShare({ title, text, url, toast, card }) {
     const b = e.target.closest('[data-t]');
     if (!b) return;
     const id = b.dataset.t;
+    emit('share_click', { ch: id });
     if (id === 'copy') {
       const ok = await copy();
       b.textContent = ok ? 'Copied!' : 'Press Ctrl+C';

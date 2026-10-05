@@ -53,7 +53,7 @@ export function initSfx() {
   const btn = document.getElementById('sound');
   const paint = () => { if (btn) { btn.textContent = enabled ? '🔊' : '🔇'; btn.setAttribute('aria-pressed', String(enabled)); btn.setAttribute('aria-label', enabled ? 'Sound on. Turn off' : 'Sound off. Turn on'); } };
   paint();
-  btn?.addEventListener('click', () => { sfx.set(!enabled); paint(); });
+  btn?.addEventListener('click', () => { sfx.set(!enabled); paint(); dispatchEvent(new CustomEvent('wcay:track', { detail: { name: 'sound', props: { on: enabled } } })); });
   addEventListener('pointerdown', () => sfx.unlock(), { once: true });
   addEventListener('keydown', () => sfx.unlock(), { once: true });
 

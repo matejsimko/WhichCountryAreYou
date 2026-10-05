@@ -43,6 +43,12 @@ The share popup (`public/share.js`) offers WhatsApp, X, Instagram (copies the li
 
 After choosing a country you can pick where in it you are from. Every country has its own question `place-xx` (for example `/q/place-us`), built on demand from `public/places.json`: the biggest cities, capitals, and states or regions where they matter (all 50 US states plus DC). Data comes from Natural Earth (public domain), built with `npm run build:places -- path/to/ne_10m_populated_places_simple.geojson`. On the map, zooming to a country shows its cities as dots sized by votes, with name tags for the main ones, and you can vote right from the map.
 
+## Analytics and admin panel
+
+Our own, first-party analytics (`analytics.js`, `public/track.js`) and an admin panel at `/admin` (`public/admin.js`). Cookieless and anonymous: a visitor is a hash of secret + day + IP + browser that changes daily, IPs are never stored, "Do Not Track" is respected, and bots are ignored. Geography comes from Vercel's edge headers. It records pageviews, time on page and scroll depth, referrers and UTM tags, device/browser/OS/language, and product events (votes, shares by channel, tour, map, Pinny, secrets).
+
+Admin: set an `ADMIN_TOKEN` environment variable (a long random string) in Vercel and redeploy, then open `/admin` and sign in with it. Without `ADMIN_TOKEN` the panel is off. Tabs: Overview (KPIs vs the previous period, traffic and votes charts, funnel), Audience (countries, cities, devices, time of day), Acquisition (channels, UTM campaigns, link builder), Product (pages, top questions, events), Live (who is on the site now). CSV export of raw events. Signing in on a browser excludes your own visits from the counts there. Locally the key is `dev-admin`.
+
 ## Passport, badges and secrets
 
 `/profile` is the passport: level, playtime, streaks and 27 badges (`public/me.js`, saved in `localStorage`, no accounts). Badges unlock from your answers and from small actions (opening the map, zooming to every continent, sharing). There are 8 hidden easter eggs in `public/eggs.js`. The share popup is `public/share.js`; brand icons are from simple-icons (CC0).
@@ -86,6 +92,6 @@ The frontend is `public/site.js` and the local server `dev-server.js` on purpose
 
 `npm run dev` uses a local file (`data/votes.db`). The Dockerfile does the same with the file on a mounted volume at `/data`, for hosts like Fly.io or Railway.
 
-Environment: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET`, `SITE_URL`, `IP_CAP`, `RATE_PER_MIN`, `PORT`, `TRUST_PROXY=1` (only behind a proxy that sets the client IP; automatic on Vercel).
+Environment: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET`, `SITE_URL`, `ADMIN_TOKEN`, `IP_CAP`, `RATE_PER_MIN`, `PORT`, `TRUST_PROXY=1` (only behind a proxy that sets the client IP; automatic on Vercel).
 
 Back up the database regularly. It is the whole product.

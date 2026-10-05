@@ -11,6 +11,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 export const tourState = () => { try { return localStorage.getItem(KEY); } catch { return 'done'; } };
 const setState = (v) => { try { localStorage.setItem(KEY, v); } catch { /* ignore */ } };
 
+const emit = (name, props) => dispatchEvent(new CustomEvent('wcay:track', { detail: { name, props } }));
 export function initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast }) {
   const STEPS = [
     { find: () => visible(['#finder-wrap']), title: 'Your country', text: 'Type it and press Enter. That is your first vote, and your flag lands on the map.', mood: 'wow' },
@@ -123,6 +124,7 @@ export function initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast }) {
     if (mini) mini.dataset.mood = step.mood || 'happy';
     card.classList.remove('in'); void card.offsetWidth; card.classList.add('in');
     sfx.squeak(i + 1);
+    emit('tour_step', { i: i + 1 });
     target = t;
     tween = shown ? { from: { ...shown }, t0: performance.now(), ms: reduce() ? 1 : 650 } : null;
     scrollToTarget(t);
@@ -138,6 +140,7 @@ export function initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast }) {
     spot = card = target = shown = tween = null;
     document.removeEventListener('keydown', onKey);
     setState(done ? 'done' : 'skipped');
+    if (!done) emit('tour_skip', { i: i + 1 });
     if (done) { confetti(innerWidth / 2, innerHeight * 0.6); sfx.badge(); mark('tour'); toast('🎓 Tour complete! Badge unlocked.'); }
   }
   const onKey = (e) => {
@@ -156,6 +159,7 @@ export function initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast }) {
       // wait for the landing page to render
       for (let k = 0; k < 30 && !document.querySelector('#finder-wrap'); k++) await new Promise((r) => setTimeout(r, 100));
     }
+    emit('tour_start');
     document.documentElement.style.scrollBehavior = 'auto';
     window.scrollTo(0, 0);
     document.documentElement.style.scrollBehavior = '';

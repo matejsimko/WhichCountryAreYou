@@ -17,6 +17,7 @@ const rebuildCounts = () => client.batch([
 ], 'write');
 
 await client.execute("DELETE FROM votes WHERE device_id LIKE 'seed-%'");
+await client.execute("DELETE FROM ev WHERE vh LIKE 'seed-%'");
 await rebuildCounts();
 if (process.argv.includes('--clear')) { console.log('Demo votes removed.'); process.exit(0); }
 
@@ -68,5 +69,47 @@ for (const [cc, n] of [['US', 2600], ['SK', 700], ['DE', 900], ['GB', 800], ['IN
   }
 }
 for (let i = 0; i < rows.length; i += 1000) await client.batch(rows.slice(i, i + 1000), 'write');
+// demo analytics events so /admin has something to show (visitor hashes start with "seed-")
+{
+  const days = 30, now2 = Date.now();
+  const CC = [['SK', 22], ['CZ', 10], ['US', 12], ['DE', 7], ['GB', 6], ['PL', 6], ['BR', 5], ['IN', 5], ['FR', 4], ['HU', 3], ['AT', 3], ['NL', 2], ['CA', 3], ['JP', 2], ['NG', 2]];
+  const CITIES = { SK: ['Bratislava', 'Košice', 'Žilina', 'Nitra'], CZ: ['Prague', 'Brno'], US: ['New York', 'Austin', 'San Francisco'], DE: ['Berlin', 'Munich'], GB: ['London'], PL: ['Warsaw'], BR: ['São Paulo'], IN: ['Mumbai'], FR: ['Paris'] };
+  const REFS = [[null, 'Direct', 30], ['t.co', 'X', 22], ['api.whatsapp.com', 'WA', 14], ['www.reddit.com', 'Reddit', 9], ['l.instagram.com', 'IG', 8], ['www.google.com', 'G', 7], ['news.ycombinator.com', 'HN', 4], ['www.indiehackers.com', 'IH', 3]];
+  const UAS = [['Phone', 'Chrome', 'Android', 36], ['Phone', 'Safari', 'iOS', 28], ['Desktop', 'Chrome', 'Windows', 16], ['Desktop', 'Safari', 'macOS', 8], ['Phone', 'Instagram app', 'iOS', 6], ['Desktop', 'Firefox', 'Linux', 3], ['Phone', 'TikTok app', 'Android', 3]];
+  const pickW = (arr, i) => { const sum = arr.reduce((a, x) => a + x[i], 0); let r = rand() * sum; for (const x of arr) { r -= x[i]; if (r <= 0) return x; } return arr[0]; };
+  const EVS = ['vote', 'vote', 'vote', 'vote', 'share_open', 'share_click', 'map_open', 'map_zoom', 'map_country', 'pinny_click', 'tour_start', 'badge', 'change_answer', 'search', 'sort'];
+  const PAGES = ['/', '/', '/', '/explore', '/map', '/q/country', '/q/coffee-or-tea', '/q/favorite-animal', '/profile', '/c/sk', '/about'];
+  const INS = 'INSERT INTO ev (ts, day, kind, name, vh, path, entry, ref, utm_s, utm_c, country, city, device, browser, os, lang, sw, dur, props) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+  const ev = [];
+  for (let d = days - 1; d >= 0; d--) {
+    const growth = 0.4 + (days - d) / days * 1.6;
+    const visitors = Math.round((18 + rand() * 25) * growth);
+    for (let v = 0; v < visitors; v++) {
+      const ts0 = now2 - d * 86400000 - Math.floor(rand() * 86400000);
+      const day = new Date(ts0).toISOString().slice(0, 10);
+      const vh = `seed-an-${d}-${v}`;
+      const [cc] = pickW(CC, 1), [dev, br, os] = pickW(UAS, 3), [rf] = pickW(REFS, 2);
+      const city = (CITIES[cc] || [null])[Math.floor(rand() * (CITIES[cc] || [null]).length)];
+      const utm = rf === 't.co' && rand() < 0.4 ? ['x', 'launch'] : [null, null];
+      const pages = 1 + Math.floor(rand() * rand() * 7);
+      let ts = ts0;
+      for (let i = 0; i < pages; i++) {
+        const path = i === 0 ? (rand() < 0.7 ? '/' : PAGES[Math.floor(rand() * PAGES.length)]) : PAGES[Math.floor(rand() * PAGES.length)];
+        ev.push({ sql: INS, args: [ts, day, 'pv', null, vh, path, i === 0 ? 1 : 0, i === 0 ? rf : null, i === 0 ? utm[0] : null, i === 0 ? utm[1] : null, cc, city, dev, br, os, 'en', dev === 'Phone' ? 390 : 1440, null, null] });
+        const n = Math.floor(rand() * 4);
+        for (let k = 0; k < n; k++) {
+          const name = EVS[Math.floor(rand() * EVS.length)];
+          const props = name === 'vote' ? JSON.stringify({ q: i === 0 && k === 0 && rand() < 0.5 ? 'country' : ['coffee-or-tea', 'favorite-animal', 'season', 'cuisine'][Math.floor(rand() * 4)] }) : name === 'share_click' ? JSON.stringify({ ch: ['whatsapp', 'x', 'copy', 'instagram', 'facebook'][Math.floor(rand() * 5)] }) : name === 'map_zoom' ? JSON.stringify({ view: ['europe', 'asia', 'na', 'africa'][Math.floor(rand() * 4)] }) : null;
+          ev.push({ sql: INS, args: [ts + 1000 * (k + 1), day, 'ev', name, vh, path, 0, null, null, null, cc, city, dev, br, os, 'en', null, null, props] });
+        }
+        const dur = 8000 + Math.floor(rand() * 90000);
+        ts += dur;
+        ev.push({ sql: INS, args: [ts, day, 'dur', null, vh, path, 0, null, null, null, cc, city, dev, br, os, 'en', null, dur, JSON.stringify({ sd: Math.floor(rand() * 100) })] });
+      }
+    }
+  }
+  for (let i = 0; i < ev.length; i += 800) await client.batch(ev.slice(i, i + 800), 'write');
+  console.log(`Demo analytics events added (${ev.length}).`);
+}
 await rebuildCounts();
 console.log(`Demo votes added (${rows.length}). Run "npm run seed:clear" to remove them.`);
