@@ -15,7 +15,7 @@ export function initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast }) {
   const STEPS = [
     { find: () => visible(['#finder-wrap']), title: 'Your country', text: 'Type it and press Enter. That is your first vote, and your flag lands on the map.', mood: 'wow' },
     { find: () => visible(['.grid .card']), title: 'Quick votes', text: 'Tap an answer. The bars show how the world voted. You can change it any time.', mood: 'cool' },
-    { find: () => visible(['#map-slot']), title: 'The live map', text: 'Colors show votes. Zoom to a continent, tap a country, then pick your city.', mood: 'wow' },
+    { find: () => visible(['#map-slot .map-stage', '#map-slot']), title: 'The live map', text: 'Colors show votes. Zoom to a continent, tap a country, then pick your city.', mood: 'wow' },
     { find: () => visible(['.nav a[href="/explore"]', '.tabbar a[href="/explore"]']), title: 'All questions', text: 'There are 25 to explore, and new ones arrive often.', mood: 'happy' },
     { find: () => visible(['.nav a[href="/profile"]', '.tabbar a[href="/profile"]']), title: 'Your passport', text: 'Badges, time here and every answer you gave live here.', mood: 'cool' },
     { find: () => visible(['#sound']), title: 'Sound', text: 'Little sounds play when you hover and vote. Mute them here.', mood: 'happy' },
@@ -45,9 +45,13 @@ export function initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast }) {
     if (innerWidth <= 640) { card.classList.add('sheet'); card.style.left = '12px'; card.style.top = 'auto'; card.style.right = '12px'; card.style.bottom = 'calc(92px + env(safe-area-inset-bottom, 0px))'; return; }
     card.classList.remove('sheet'); card.style.right = 'auto'; card.style.bottom = 'auto';
     const gap = 16;
-    if (below && v.y + v.h + gap + ch > innerHeight - 8) below = false;
-    else if (!below && v.y - gap - ch < 8) below = true;
-    let top = below ? v.y + v.h + gap : v.y - gap - ch;
+    const spaceBelow = innerHeight - (v.y + v.h) - gap - 8, spaceAbove = v.y - gap - 8;
+    // switch sides only when the current side is too small AND the other side fits, so a tall target can't make it flip every frame
+    if (below && spaceBelow < ch && spaceAbove >= ch) below = false;
+    else if (!below && spaceAbove < ch && spaceBelow >= ch) below = true;
+    let top;
+    if (spaceBelow < ch && spaceAbove < ch) top = innerHeight - ch - 16; // neither side fits: sit in the bottom corner, over the target
+    else top = below ? v.y + v.h + gap : v.y - gap - ch;
     top = Math.max(8, Math.min(innerHeight - ch - 8, top));
     const left = Math.max(12, Math.min(innerWidth - cw - 12, v.x + v.w / 2 - cw / 2));
     card.style.left = `${left.toFixed(1)}px`;
@@ -95,9 +99,10 @@ export function initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast }) {
   let showId = 0;
   async function ready(t) {
     // the map loads when it scrolls into view and then grows; wait until it has its real size
-    if (t.id !== 'map-slot' || t.querySelector('.map-stage')) return;
-    scrollToTarget(t);
-    for (let k = 0; k < 40 && !t.querySelector('.map-stage'); k++) await new Promise((r) => setTimeout(r, 100));
+    const slot = document.querySelector('#map-slot');
+    if (!slot || (t !== slot && !t.classList.contains('map-stage')) || slot.querySelector('.map-stage')?.getBoundingClientRect().height > 100) return;
+    scrollToTarget(slot);
+    for (let k = 0; k < 40 && !(slot.querySelector('.map-stage')?.getBoundingClientRect().height > 100); k++) await new Promise((r) => setTimeout(r, 100));
     await new Promise((r) => setTimeout(r, 250));
   }
   async function show(n) {
