@@ -33,7 +33,7 @@ export function initGuide(ctx) {
   let cur = { x: 0, y: 0 };
   let mode = 'float'; // 'float' = at the bottom of the screen with you, 'home' = sitting on the landing page hill
   let busy = false; // mid-flight
-  const size = () => (innerWidth <= 640 ? [64, 76] : [84, 100]);
+  const size = () => (innerWidth <= 640 ? [84, 100] : [118, 140]);
   const homeSpot = (s = side) => {
     const [w, h] = size();
     const bottom = innerWidth <= 640 ? 84 : 18;
@@ -42,22 +42,38 @@ export function initGuide(ctx) {
   function setPos(p) { cur = p; el.style.transform = `translate(${p.x}px, ${p.y}px)`; }
   addEventListener('resize', () => { if (!busy && mode === 'float') setPos(homeSpot()); });
 
-  // flies along an arc, spinning, and lands on `to`
-  function flyTo(to, { ms = 1000, spin = 1, arc = 110 } = {}) {
+  // smooth motion: sample a function of time into many keyframes so paths are curves, not polylines
+  const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const bump = (t) => Math.sin(Math.PI * t);
+  const smooth = (t) => t * t * (3 - 2 * t);
+  function sample(fn, n = 48) {
+    const out = [];
+    for (let i = 0; i <= n; i++) {
+      const { x = 0, y = 0, r = 0, s = 1 } = fn(i / n);
+      out.push({ transform: `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${r.toFixed(2)}deg) scale(${s.toFixed(3)})` });
+    }
+    return out;
+  }
+  const LIN = { easing: 'linear', composite: 'replace' };
+
+  // flies along a curve, tilting into the turn and spinning, then lands with a squish
+  function flyTo(to, { ms = 1300, spin = 1, arc = 110 } = {}) {
     const from = { ...cur };
     busy = true;
     if (reduce()) { setPos(to); busy = false; return Promise.resolve(); }
-    const mx = (from.x + to.x) / 2 + rnd(-40, 40), my = Math.min(from.y, to.y) - arc;
+    const cx = (from.x + to.x) / 2 + rnd(-40, 40), cy = Math.min(from.y, to.y) - arc;
+    const P = (t) => { const e = easeIO(t); return { x: (1 - e) * (1 - e) * from.x + 2 * (1 - e) * e * cx + e * e * to.x, y: (1 - e) * (1 - e) * from.y + 2 * (1 - e) * e * cy + e * e * to.y }; };
     el.style.visibility = 'visible';
     wings(true); trail(true);
-    const a = el.animate([
-      { transform: `translate(${from.x}px, ${from.y}px)` },
-      { transform: `translate(${mx}px, ${my}px)`, offset: 0.5 },
-      { transform: `translate(${to.x}px, ${to.y}px)` },
-    ], { duration: ms, easing: 'cubic-bezier(.45,.05,.3,1)' });
-    if (spin) btn.animate([{ transform: 'rotate(0)' }, { transform: `rotate(${360 * spin}deg) scale(1.15)`, offset: 0.55 }, { transform: `rotate(${360 * spin}deg)` }], { duration: ms, easing: 'ease-in-out' });
+    const a = el.animate(sample((t) => { const p = P(t); return { x: p.x, y: p.y }; }, 56).map((k) => ({ transform: k.transform.replace(/ rotate.*$/, '') })), { duration: ms, ...LIN });
+    // body: bank into the direction of travel, plus an optional full spin
+    const dir = Math.sign(to.x - from.x) || 1;
+    btn.animate(sample((t) => ({ r: spin * 360 * easeIO(t) + dir * 12 * bump(t), s: 1 + 0.1 * bump(t) }), 56), { duration: ms, ...LIN });
     sfx.whoosh();
-    return a.finished.catch(() => {}).then(() => { setPos(to); busy = false; wings(false); trail(false); });
+    return a.finished.catch(() => {}).then(() => {
+      setPos(to); busy = false; wings(false); trail(false);
+      btn.animate([{ transform: 'scale(1.14, .86)' }, { transform: 'scale(.94, 1.08)', offset: 0.45 }, { transform: 'scale(1)' }], { duration: 520, easing: 'cubic-bezier(.3,1.4,.5,1)' });
+    });
   }
 
   // ---------- the pinny on the landing page hill
@@ -78,13 +94,13 @@ export function initGuide(ctx) {
       mode = 'float';
       setPos(from);
       homePin.style.visibility = 'hidden';
-      await flyTo(homeSpot(), { ms: 1100, spin: 1 });
+      await flyTo(homeSpot(), { ms: 1500, spin: 1 });
       if (current && !bubbleOpen() && !offering) say(current.dataset.guide, 3200);
     } else {
       // he flies back to the hill
       mode = 'home';
       bubble.hidden = true; panel.hidden = true;
-      await flyTo(homeSpotFromHill(), { ms: 800, spin: -1, arc: 70 });
+      await flyTo(homeSpotFromHill(), { ms: 1100, spin: -1, arc: 70 });
       homePin.style.visibility = '';
       el.style.visibility = 'hidden';
     }
@@ -178,7 +194,7 @@ export function initGuide(ctx) {
         if (!first && !busy && panel.hidden) {
           side = side === 'right' ? 'left' : 'right';
           bubble.hidden = true;
-          flyTo(homeSpot(), { ms: 900, spin: 1, arc: 80 }).then(() => say(e.target.dataset.guide));
+          flyTo(homeSpot(), { ms: 1200, spin: 1, arc: 80 }).then(() => say(e.target.dataset.guide));
         } else say(e.target.dataset.guide);
         poke();
       }
@@ -199,44 +215,28 @@ export function initGuide(ctx) {
   addEventListener('scroll', poke, { passive: true });
 
   const air = (ms) => { wings(true); trail(true); setTimeout(() => { wings(false); trail(false); }, ms); };
+  const play = (ms, fn, n = 56) => fly.animate(sample(fn, n), { duration: ms, ...LIN });
   const antics = {
-    somersault() { fly.animate([{ transform: 'translateY(0) rotate(0)' }, { transform: 'translateY(-70px) rotate(180deg) scale(1.1)', offset: 0.45 }, { transform: 'translateY(0) rotate(360deg)' }], { duration: 950, easing: 'cubic-bezier(.3,.7,.4,1)' }); sfx.squeak(3); air(950); },
-    orbit() {
-      const r = 64, k = [];
-      for (let i = 0; i <= 12; i++) { const a = (i / 12) * Math.PI * 2; k.push({ transform: `translate(${(r * Math.sin(a)).toFixed(1)}px, ${(r * (Math.cos(a) - 1)).toFixed(1)}px) rotate(${i * 30}deg)` }); }
-      fly.animate(k, { duration: 2200, easing: 'ease-in-out' }); sfx.whoosh(); air(2200);
-    },
+    somersault() { play(1100, (t) => ({ y: -78 * bump(t), r: 360 * easeIO(t), s: 1 + 0.12 * bump(t) })); sfx.squeak(3); air(1100); },
+    orbit() { const R = 70; play(2600, (t) => { const a = 2 * Math.PI * easeIO(t); return { x: R * Math.sin(a), y: R * (Math.cos(a) - 1), r: 360 * easeIO(t) * 0.5 }; }, 72); sfx.whoosh(); air(2600); },
     wander() {
-      const dx = (side === 'right' ? -1 : 1) * rnd(120, 260), dy = -rnd(30, 150);
-      fly.animate([{ transform: 'translate(0,0) rotate(0)' }, { transform: `translate(${dx * 0.5}px, ${dy - 30}px) rotate(-14deg)`, offset: 0.25 }, { transform: `translate(${dx}px, ${dy}px) rotate(12deg)`, offset: 0.5 }, { transform: `translate(${dx * 0.4}px, ${dy * 0.6}px) rotate(-8deg)`, offset: 0.78 }, { transform: 'translate(0,0) rotate(0)' }], { duration: 3600, easing: 'ease-in-out' }); sfx.squeak(1); air(3600);
+      const dx = (side === 'right' ? -1 : 1) * rnd(140, 280), dy = -rnd(40, 160);
+      play(4200, (t) => { const e = bump(t); return { x: dx * e, y: dy * e + 14 * Math.sin(3 * Math.PI * t) * e, r: 12 * Math.sin(3 * Math.PI * t) * e }; }, 80); sfx.squeak(1); air(4200);
     },
-    peek() {
-      const dir = side === 'right' ? 1 : -1;
-      fly.animate([{ transform: 'translateX(0) rotate(0)' }, { transform: `translateX(${dir * 66}px) rotate(${dir * 22}deg)`, offset: 0.3 }, { transform: `translateX(${dir * 66}px) rotate(${dir * 22}deg)`, offset: 0.7 }, { transform: 'translateX(0) rotate(0)' }], { duration: 2200, easing: 'ease-in-out' });
-    },
-    dance() {
-      const k = []; for (let i = 0; i < 8; i++) k.push({ transform: `translateY(${i % 2 ? 0 : -14}px) rotate(${i % 2 ? 12 : -12}deg)` }); k.push({ transform: 'none' });
-      fly.animate(k, { duration: 1300, easing: 'ease-in-out' }); sfx.squeak(2); mood('party'); setTimeout(() => mood('happy'), 1400);
-    },
-    loop() { // quick loop-the-loop in the air
-      fly.animate([{ transform: 'translate(0,0) rotate(0)' }, { transform: 'translate(-50px,-60px) rotate(-180deg)', offset: 0.35 }, { transform: 'translate(0,-110px) rotate(-360deg)', offset: 0.6 }, { transform: 'translate(0,0) rotate(-360deg)' }], { duration: 1500, easing: 'ease-in-out' }); sfx.whoosh(); air(1500);
-    },
+    peek() { const d = side === 'right' ? 1 : -1; play(2600, (t) => { const k = Math.min(t / 0.3, (1 - t) / 0.3, 1); const e = smooth(Math.max(0, k)); return { x: d * 78 * e, r: d * 24 * e }; }, 60); },
+    dance() { play(1600, (t) => { const f = bump(t); return { y: -16 * Math.abs(Math.sin(4 * Math.PI * t)) * f, r: 12 * Math.sin(8 * Math.PI * t) * f }; }, 64); sfx.squeak(2); mood('party'); setTimeout(() => mood('happy'), 1700); },
+    loop() { play(1800, (t) => ({ x: -50 * Math.sin(2 * Math.PI * t), y: -118 * bump(t), r: -360 * easeIO(t) }), 64); sfx.whoosh(); air(1800); },
     yawn() { mood('yawn'); sfx.squeak(0); setTimeout(() => mood('happy'), 1700); },
-    zoomies() {
-      const d = side === 'right' ? -1 : 1, k = [];
-      for (let i = 0; i < 8; i++) k.push({ transform: `translate(${(i % 2 ? 0 : d * rnd(90, 170))}px, ${-rnd(0, 60)}px) rotate(${i % 2 ? 8 : -14 * d}deg)` });
-      k.push({ transform: 'none' });
-      fly.animate(k, { duration: 1800, easing: 'ease-in-out' }); sfx.whoosh(); air(1800); mood('wow'); setTimeout(() => mood('happy'), 1900);
-    },
-    async chase() { // flies over to where your cursor is, says hi, goes back
+    zoomies() { const d = side === 'right' ? -1 : 1; play(2200, (t) => { const f = bump(t); return { x: d * 150 * Math.sin(4 * Math.PI * t) * f * 0.5 + d * 70 * f, y: -34 * Math.abs(Math.sin(2 * Math.PI * t * 2)) * f, r: -16 * d * Math.cos(4 * Math.PI * t) * f }; }, 80); sfx.whoosh(); air(2200); mood('wow'); setTimeout(() => mood('happy'), 2300); },
+    async chase() { // flies over to your cursor, says hi, goes back
       const [w, h] = size();
-      const to = { x: Math.max(8, Math.min(innerWidth - w - 8, mx - w / 2 + (side === 'right' ? -70 : 70))), y: Math.max(70, Math.min(innerHeight - h - 8, my - h / 2)) };
+      const to = { x: Math.max(8, Math.min(innerWidth - w - 8, mx - w / 2 + (side === 'right' ? -90 : 90))), y: Math.max(70, Math.min(innerHeight - h - 8, my - h / 2)) };
       bubble.hidden = true;
-      await flyTo(to, { ms: 1100, spin: 1, arc: 50 });
+      await flyTo(to, { ms: 1300, spin: 1, arc: 60 });
       mood('wow'); sfx.squeak(3); say('Boop!', 1400);
       await new Promise((r) => setTimeout(r, 1500));
       mood('happy');
-      await flyTo(homeSpot(), { ms: 1000, spin: -1, arc: 60 });
+      await flyTo(homeSpot(), { ms: 1200, spin: -1, arc: 70 });
     },
   };
   function scheduleFun() {
@@ -381,7 +381,7 @@ export function initGuide(ctx) {
     if (!moved) return;
     justDragged = true; setTimeout(() => { justDragged = false; }, 0);
     mood('party'); say('Wheee!', 1500);
-    await flyTo(homeSpot(), { ms: 1100, spin: 1, arc: 90 });
+    await flyTo(homeSpot(), { ms: 1300, spin: 1, arc: 90 });
     mood('happy');
   };
   btn.addEventListener('pointerup', drop);
