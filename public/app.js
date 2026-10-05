@@ -111,6 +111,7 @@ function skySVG() {
 
 // Pinny, the paper map pin. Moods are cycled by clicking (see eggs.js); CSS does the rest.
 const pinny = (x, y, cls = '', k = 1.45) => `<g transform="translate(${x} ${y}) scale(${k})" class="pinny ${cls}" data-mood="happy" data-i="0" tabindex="0" role="img" aria-label="Pinny the map pin. Click for a new look.">
+  <rect class="p-hit" x="-58" y="-132" width="116" height="146" fill="rgba(0,0,0,0)" pointer-events="all"/>
   <ellipse cy="3" rx="30" ry="6" fill="#0A5F55" opacity=".3"/>
   <g class="p-all"><g class="p-bob">
     <g class="p-wings"><path class="wing l" d="M-30-62C-64-100-92-72-74-48C-64-36-42-44-30-52Z" fill="#fff" stroke="#E6DAC3" stroke-width="2.5"/><path class="wing r" d="M30-62C64-100 92-72 74-48C64-36 42-44 30-52Z" fill="#fff" stroke="#E6DAC3" stroke-width="2.5"/></g>

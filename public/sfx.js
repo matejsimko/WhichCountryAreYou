@@ -58,11 +58,18 @@ export function initSfx() {
   addEventListener('keydown', () => sfx.unlock(), { once: true });
 
   const HOVERABLE = '.opt, .duel-opt, .chip, .btn, .sticker, .row, .share-btn, .badge.on, .tabbar a, .nav a, .brand, .pennant, .marquee-track .flag, .map-zoom button, .block-foot .link';
-  let last = null;
+  let last = null, lastPinnyAt = 0;
   document.addEventListener('pointerover', (e) => {
     if (e.pointerType !== 'mouse') return;
     const pinny = e.target.closest?.('.pinny');
-    if (pinny) { if (last !== pinny) { last = pinny; sfx.squeak(Number(pinny.dataset.i || 0)); } return; }
+    if (pinny) {
+      // time-based, so a body that wiggles under the pointer can't re-trigger the squeak over and over
+      const now = performance.now();
+      if (now - lastPinnyAt > 1400) sfx.squeak(Number(pinny.dataset.i || 0));
+      lastPinnyAt = now;
+      last = pinny;
+      return;
+    }
     const t = e.target.closest?.(HOVERABLE);
     if (t && t !== last) { last = t; sfx.hover(); } else if (!t) last = null;
   });

@@ -612,3 +612,6 @@ span.rain { box-shadow: none; }
 @keyframes gbob { from { transform: translateY(0) scale(1, 1); } to { transform: translateY(-6px) scale(1.015, 1.03); } }
 .guide .pinny .p-arm.r { animation-duration: 3.8s; }
 .guide-btn { will-change: transform; }
+
+/* a fixed hit area, so the hover state doesn't depend on the jumping body underneath the pointer */
+.pinny .p-hit { pointer-events: all; }
