@@ -373,6 +373,7 @@ function mountBlock(el, d, ctx = {}) {
       ctx.onVoted?.(d);
       afterVote();
     } catch (err) {
+      emit('vote_error', { s: err.status || 0 });
       toast(err.message);
     } finally {
       busy = false;
@@ -615,7 +616,7 @@ function about() {
     <h2>What we keep</h2>
     <p>A random ID in a cookie on your device, and your answers. We also keep a one-way hash of your network address that changes every day, so it can't be traced back to you or used to follow you around. No names, no emails, no accounts. Your passport (badges, time here) lives in your browser only.</p>
     <h2>Counting visits</h2>
-    <p>To learn what works, we count visits with our own simple analytics. It uses no cookies and stores no IP address. A visitor is a one-way hash that changes every day, so nobody can be followed from one day to the next. We see which pages were opened, roughly where from (country and city, as reported by our host), the kind of device and browser, where the link came from, and what people did on the site, such as voting or sharing. If your browser sends "Do Not Track", we don't count you at all.</p>
+    <p>To learn what works, we count visits with our own simple analytics. It uses no cookies and stores no IP address. A visitor is a one-way hash that changes every day, so nobody can be followed from one day to the next. We see which pages were opened, roughly where from (country and city, as reported by our host), the kind of device and browser, where the link came from, and what people did on the site, such as voting or sharing. We also measure how fast pages load and whether anything breaks, and which share button a visit came through (shared links end in ?s=name). If your browser sends "Do Not Track", we don't count you at all.</p>
     <h2>Take it with a grain of salt</h2>
     <p>Anyone can vote and nobody is verified, so this is a game and not a survey. It's still fun to watch the bars move.</p>
     <h2>Flags and credits</h2>
@@ -626,6 +627,7 @@ function about() {
 
 function notFound() {
   setHue(178);
+  emit('not_found');
   app.innerHTML = `<div class="view wrap"><div class="page-head"><p class="eyebrow">404</p><h1 class="display">That page isn't on the map.</h1><p><a class="btn" href="/" data-link>Back home</a></p></div></div>`;
 }
 

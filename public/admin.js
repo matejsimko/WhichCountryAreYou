@@ -2,7 +2,7 @@
 // Tabs: Overview, Audience, Acquisition, Product, Live. Everything is drawn with plain SVG, no libraries.
 
 const RANGES = [[1, 'Today'], [7, '7 days'], [30, '30 days'], [90, '90 days'], [365, '1 year']];
-const TABS = [['overview', 'Overview'], ['audience', 'Audience'], ['sources', 'Acquisition'], ['product', 'Product'], ['live', 'Live']];
+const TABS = [['overview', 'Overview'], ['audience', 'Audience'], ['sources', 'Acquisition'], ['product', 'Product'], ['health', 'Health'], ['live', 'Live']];
 
 // friendly names and groups for events
 const EVENTS = {
@@ -11,10 +11,11 @@ const EVENTS = {
   tour_offer: ['Tutorial', 'Answered the tour offer'], tour_start: ['Tutorial', 'Started the tour'], tour_step: ['Tutorial', 'Tour steps viewed'], tour_done: ['Tutorial', 'Finished the tour'], tour_skip: ['Tutorial', 'Skipped the tour'],
   map_open: ['Map', 'Opened the map'], map_zoom: ['Map', 'Zoomed to a continent'], map_country: ['Map', 'Selected a country on the map'], map_question: ['Map', 'Switched the map question'],
   pinny_click: ['Pinny', 'Clicked Pinny'], pinny_drag: ['Pinny', 'Carried Pinny around'], pinny_passport: ['Pinny', 'Opened the passport from Pinny'], pinny_tour: ['Pinny', 'Started the tour from Pinny'], pinny_away: ['Pinny', 'Sent Pinny away'],
+  outbound: ['Interface', 'Clicked a link that leaves the site'], vote_error: ['Problems', 'Vote failed'], not_found: ['Problems', 'Opened a page that does not exist'], js_error: ['Problems', 'Browser errors'],
   badge: ['Passport and secrets', 'Badges unlocked'], egg: ['Passport and secrets', 'Easter eggs found'], sound: ['Interface', 'Toggled sound'],
 };
-const GROUPS = ['Voting', 'Sharing', 'Tutorial', 'Map', 'Pinny', 'Passport and secrets', 'Interface'];
-const BREAKDOWN_LABEL = { share_click: ['ch', 'by option'], map_zoom: ['view', 'by continent'], egg: ['id', 'by secret'], tour_step: ['i', 'by step'], tour_skip: ['i', 'skipped at step'], sort: ['k', 'by sort'], filter_group: ['g', 'by filter'], tour_offer: ['a', 'answer'], vote: ['q', 'by question'], place_vote: ['q', 'by country'], search: ['q', 'by question'] };
+const GROUPS = ['Voting', 'Sharing', 'Tutorial', 'Map', 'Pinny', 'Passport and secrets', 'Interface', 'Problems'];
+const BREAKDOWN_LABEL = { share_click: ['ch', 'by option'], map_zoom: ['view', 'by continent'], egg: ['id', 'by secret'], tour_step: ['i', 'by step'], tour_skip: ['i', 'skipped at step'], sort: ['k', 'by sort'], filter_group: ['g', 'by filter'], tour_offer: ['a', 'answer'], vote: ['q', 'by question'], outbound: ['h', 'by site'], vote_error: ['s', 'by status'], place_vote: ['q', 'by country'], search: ['q', 'by question'] };
 
 export async function mountAdmin(root, { esc, fmt, flagImg }) {
   if (!document.getElementById('adm-css')) {
@@ -138,6 +139,15 @@ export async function mountAdmin(root, { esc, fmt, flagImg }) {
     return `<ol class="funnel">${f.map((s, i) => `<li><div class="f-bar" style="width:${Math.max(3, (s.n / top) * 100)}%"></div><span class="f-l">${esc(s.label)}</span><span class="f-n"><b>${fmt(s.n)}</b> <small>${pct(s.n, top)}%${i && s.n <= f[i - 1].n ? ` · ${pct(s.n, f[i - 1].n)}% of previous` : ''}</small></span></li>`).join('')}</ol>`;
   }
 
+  function retentionCard(d) {
+    const r = d.retention;
+    if (!r.devices) return '<p class="empty">No votes yet.</p>';
+    return `<div class="agrid two"><div>
+        <div class="bignums"><div><b>${pct(r.back2, r.devices)}%</b><span>voted on 2+ different days</span></div><div><b>${pct(r.back3, r.devices)}%</b><span>voted on 3+ different days</span></div><div><b>${fmt(r.devices)}</b><span>devices that voted, all time</span></div></div>
+        <p class="note">Answers per device</p>${bars(r.dist.map((x) => ({ k: x.k, n: x.n })), { color: 'var(--grape)' })}</div>
+      <div>${lineChart({ labels: r.series.map((x) => x.day), series: [{ label: 'New voting devices', color: '#0F8A7A', data: r.series.map((x) => x.fresh), area: true }, { label: 'Returning voting devices', color: '#8C55D9', data: r.series.map((x) => x.back), area: true }] })}</div></div>`;
+  }
+
   function overviewTab(d) {
     const labels = d.series.map((x) => x.day);
     return `${card('At a glance', insights(d), { cls: 'wide' })}
@@ -146,6 +156,7 @@ export async function mountAdmin(root, { esc, fmt, flagImg }) {
         ${card('Traffic', lineChart({ labels, series: [{ label: 'Visitors', color: '#0F8A7A', data: d.series.map((x) => x.visitors), area: true }, { label: 'Pageviews', color: '#EE5A36', data: d.series.map((x) => x.views) }] }), { sub: 'Per day' })}
         ${card('Votes', lineChart({ labels, series: [{ label: 'Votes', color: '#F0A800', data: d.series.map((x) => x.votes) }], bars: true }), { sub: 'Answers saved per day' })}
       </div>
+      ${card('Do people come back?', retentionCard(d), { cls: 'wide', sub: 'Based on the votes people leave (the device cookie the site already needs to count one vote each), not on tracking' })}
       <div class="agrid two">
         ${card('From visit to share', funnel(d), { sub: 'Unique visitors at each step' })}
         ${card('The product so far', `<div class="bignums"><div><b>${fmt(d.totals.votes)}</b><span>votes in total</span></div><div><b>${fmt(d.totals.countries)}</b><span>countries on the map</span></div><div><b>${fmt(d.totals.devices)}</b><span>devices that voted</span></div></div>${bars(d.questions.slice(0, 6), { label: (r) => qname(r.q), value: (r) => r.n, color: 'var(--sun)' })}`, { sub: 'All time, from the votes tables' })}
@@ -183,7 +194,10 @@ export async function mountAdmin(root, { esc, fmt, flagImg }) {
 
   function sourcesTab(d) {
     const tot = d.channels.reduce((a, r) => a + r.visitors, 0);
-    return `<div class="agrid two">
+    const v = d.viral, shareClicks = d.breakdown?.share_click?.ch || {};
+    const viral = card('Viral loop: do shares bring new people?', `<div class="bignums"><div><b>${fmt(v.visitors)}</b><span>visitors who arrived through a shared link</span></div><div><b>${(v.share * 100).toFixed(1)}%</b><span>of all visitors</span></div><div><b>${v.sharers ? v.perSharer.toFixed(2) : '0'}</b><span>new visitors per person who shared</span></div></div>
+      <div class="agrid two"><div><p class="note">Arrived via (share channel)</p>${bars(v.bySource.map((x) => ({ k: x.s, n: x.n })), { color: 'var(--tomato)' })}</div><div><p class="note">Share options clicked</p>${bars(Object.entries(shareClicks).sort((p, q) => q[1] - p[1]).map(([k, n]) => ({ k, n })), { color: 'var(--grape)' })}</div></div>`, { cls: 'wide', sub: 'Every link people share ends in ?s=channel. Above 1.0 new visitors per sharer, the product spreads by itself' });
+    return `${viral}<div class="agrid two">
       ${card('Where visitors come from', bars(d.channels, { label: (r) => r.name, value: (r) => r.visitors, total: tot, color: 'var(--tomato)' }), { sub: 'Referrers and campaign tags, grouped' })}
       ${card('Landing pages', bars(d.entries, { label: (r) => r.path, value: (r) => r.n, color: 'var(--teal)' }), { sub: 'The first page of a visit' })}
     </div>
@@ -196,7 +210,7 @@ export async function mountAdmin(root, { esc, fmt, flagImg }) {
 
   function productTab(d) {
     const byGroup = new Map();
-    for (const e of d.events) { const [g, label] = EVENTS[e.name] || ['Other', e.name]; (byGroup.get(g) || byGroup.set(g, []).get(g)).push({ ...e, label }); }
+    for (const e of d.events) { if (e.name === 'perf') continue; const [g, label] = EVENTS[e.name] || ['Other', e.name]; (byGroup.get(g) || byGroup.set(g, []).get(g)).push({ ...e, label }); }
     const groups = [...GROUPS, 'Other'].filter((g) => byGroup.has(g));
     const evCards = groups.map((g) => card(g, `<table class="atable"><thead><tr><th>Event</th><th class="r">Times</th><th class="r">People</th></tr></thead><tbody>${byGroup.get(g).map((e) => {
       const bd = BREAKDOWN_LABEL[e.name]; let sub = '';
@@ -210,6 +224,23 @@ export async function mountAdmin(root, { esc, fmt, flagImg }) {
     </div>
     ${tourStart ? card('Tutorial completion', `<div class="bignums one"><div><b>${fmt(tourStart)}</b><span>started</span></div><div><b>${fmt(tourDone)}</b><span>finished</span></div><div><b>${pct(tourDone, tourStart)}%</b><span>completion</span></div></div>`) : ''}
     <div class="agrid two">${evCards || card('Events', '<p class="empty">No events recorded yet.</p>')}</div>`;
+  }
+
+  function healthTab(d) {
+    const LIM = { lcp: [2500, 4000], cls: [0.1, 0.25], inp: [200, 500], ttfb: [800, 1800] };
+    const rate = (m, v) => (v == null ? 'na' : !LIM[m] ? 'na' : v <= LIM[m][0] ? 'good' : v <= LIM[m][1] ? 'mid' : 'poor');
+    const fv = (m, v) => (v == null ? '-' : m === 'cls' ? v.toFixed(3) : v >= 1000 ? (v / 1000).toFixed(2) + ' s' : Math.round(v) + ' ms');
+    const rows = [['lcp', 'Largest paint (LCP)', 'How fast the main content shows. Good: under 2.5 s'], ['inp', 'Responsiveness (INP)', 'How quickly taps and clicks react. Good: under 200 ms'], ['cls', 'Layout shift (CLS)', 'Does the page jump while loading. Good: under 0.1'], ['ttfb', 'Server response (TTFB)', 'How fast the server answers. Good: under 0.8 s'], ['load', 'Full load', 'Everything loaded']];
+    const P = d.perf;
+    const cell = (grp, m) => { const x = P[grp][m]; if (!x || x.p75 == null) return '<td class="r">-</td>'; const good = x.n ? Math.round((x.good / x.n) * 100) : null; return `<td class="r"><span class="rate ${rate(m, x.p75)}">${fv(m, x.p75)}</span>${good != null && LIM[m] ? `<small class="gd">${good}% good</small>` : ''}</td>`; };
+    const n = P.all.lcp?.n || 0;
+    const perf = card('Speed (what real visitors experience)', n ? `<table class="atable perf"><thead><tr><th>Metric</th><th class="r">Everyone</th><th class="r">Phones</th><th class="r">Desktop</th></tr></thead><tbody>${rows.map(([m, l, h]) => `<tr><td>${l}<small class="hint">${h}</small></td>${cell('all', m)}${cell('Phone', m)}${cell('Desktop', m)}</tr>`).join('')}</tbody></table><p class="note">Typical (75th percentile) values from ${fmt(n)} page loads. Green is good, amber needs work, red is poor.</p>` : '<p class="empty">No measurements yet. They arrive as visitors load pages.</p>', { cls: 'wide', sub: 'Core Web Vitals, measured in the visitor\'s own browser' });
+    const errs = card('Browser errors', d.errors.length ? `<table class="atable"><thead><tr><th>Error</th><th>File</th><th class="r">Times</th><th class="r">People</th><th>Browser</th><th class="r">Last</th></tr></thead><tbody>${d.errors.map((e) => `<tr><td>${esc(e.m || '')}</td><td>${esc(e.f || '')}</td><td class="r">${fmt(e.n)}</td><td class="r">${fmt(e.u)}</td><td>${esc(e.browser || '')}</td><td class="r">${ago(e.last)}</td></tr>`).join('')}</tbody></table>` : '<p class="empty">No browser errors recorded in this period.</p>', { cls: 'wide', sub: 'JavaScript errors people hit, so you can fix them before anyone complains' });
+    return `${perf}${errs}<div class="agrid three">
+      ${card('Pages that do not exist (404)', bars(d.notFound.map((x) => ({ k: x.path, n: x.n })), { color: 'var(--tomato)' }), { sub: 'Broken links and typos' })}
+      ${card('Failed votes', bars(d.voteErrors.map((x) => ({ k: 'HTTP ' + x.s, n: x.n })), { color: 'var(--tomato)' }), { sub: '429 means a rate limit was hit' })}
+      ${card('Links that leave the site', bars(d.outbound.map((x) => ({ k: x.h, n: x.n })), { color: 'var(--sky)' }))}
+    </div>`;
   }
 
   function liveTab() {
@@ -226,7 +257,7 @@ export async function mountAdmin(root, { esc, fmt, flagImg }) {
     const d = state.data;
     const range = RANGES.map(([n, l]) => `<button class="rng${state.days === n ? ' on' : ''}" data-days="${n}">${l}</button>`).join('');
     const tabs = TABS.map(([k, l]) => `<button class="tab${state.tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('');
-    const body = !d ? '<div class="loading"><i></i><i></i><i></i></div>' : ({ overview: overviewTab, audience: audienceTab, sources: sourcesTab, product: productTab, live: liveTab }[state.tab])(d);
+    const body = !d ? '<div class="loading"><i></i><i></i><i></i></div>' : ({ overview: overviewTab, audience: audienceTab, sources: sourcesTab, product: productTab, health: healthTab, live: liveTab }[state.tab])(d);
     const foot = d ? `<footer class="afoot">${fmt(d.totals.events)} analytics events stored${d.totals.first ? ` since ${new Date(d.totals.first).toLocaleDateString()}` : ''}${d.totals.last ? `. Last event ${ago(d.totals.last)}` : ''}. Data is first-party, cookieless and anonymous (visitors are a daily hash, IPs are never stored). Updated ${ago(d.generatedAt)}.</footer>` : '';
     root.innerHTML = `<div class="adm view">
       <header class="atop"><div class="atitle"><h1>Analytics</h1><span class="live-pill" id="live-pill"><i></i><b>${d ? fmt(d.live) : '…'}</b> online</span></div>

@@ -151,3 +151,10 @@ body:has(.adm) { padding-bottom: 0; }
 .loading { display: grid; gap: 14px; }
 .loading i { height: 130px; border-radius: 16px; background: linear-gradient(100deg, #EDE9DD 40%, #F7F4EC 50%, #EDE9DD 60%) 0 0 / 200% 100%; animation: sk 1.4s infinite; }
 @keyframes sk { to { background-position: -200% 0; } }
+
+/* health */
+.atable.perf td { vertical-align: middle; }
+.atable .hint { display: block; color: var(--muted); font-size: .76rem; font-weight: 400; margin-top: 1px; }
+.rate { display: inline-block; padding: 2px 10px; border-radius: 99px; font-weight: 600; font-size: .9rem; }
+.rate.good { background: #DDF3E5; color: #0B6B3A; } .rate.mid { background: #FFF0C7; color: #8A6000; } .rate.poor { background: #FADADA; color: #A3301A; } .rate.na { background: #EEE; color: #666; }
+.atable .gd { display: block; color: var(--muted); font-size: .74rem; }

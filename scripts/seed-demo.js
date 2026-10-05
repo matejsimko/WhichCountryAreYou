@@ -47,11 +47,14 @@ for (let i = 0; i < PEOPLE; i++) {
   const ci = pickIdx(base.country);
   const cc = countryQ.options[ci].id;
   const dev = `seed-p-${i}`;
-  rows.push({ sql: ROW, args: ['country', dev, cc, 'seed', now, now] });
+  const off = Math.floor(rand() * rand() * 30); // days ago of the first visit (more recent is more common: growth)
+  const t0 = now - off * 86400000 - Math.floor(rand() * 40000000);
+  rows.push({ sql: ROW, args: ['country', dev, cc, 'seed', t0, t0] });
   for (const q of QUESTIONS) {
     if (q.id === 'country' || rand() > 0.72) continue;
     const w = base[q.id].map((b, k) => b * (0.35 + 1.4 * frac(cc + q.id + q.options[k].id)));
-    rows.push({ sql: ROW, args: [q.id, dev, q.options[pickIdx(w)].id, 'seed', now, now] });
+    const later = off > 0 && rand() < 0.28 ? Math.floor(rand() * off) * 86400000 : 0; // some people came back another day
+    rows.push({ sql: ROW, args: [q.id, dev, q.options[pickIdx(w)].id, 'seed', t0 + later, t0 + later] });
   }
 }
 
@@ -80,6 +83,7 @@ for (let i = 0; i < rows.length; i += 1000) await client.batch(rows.slice(i, i +
   const EVS = ['vote', 'vote', 'vote', 'vote', 'share_open', 'share_click', 'map_open', 'map_zoom', 'map_country', 'pinny_click', 'tour_start', 'badge', 'change_answer', 'search', 'sort'];
   const PAGES = ['/', '/', '/', '/explore', '/map', '/q/country', '/q/coffee-or-tea', '/q/favorite-animal', '/profile', '/c/sk', '/about'];
   const INS = 'INSERT INTO ev (ts, day, kind, name, vh, path, entry, ref, utm_s, utm_c, country, city, device, browser, os, lang, sw, dur, props) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+  const INS2 = 'INSERT INTO ev (ts, day, kind, name, vh, path, entry, ref, utm_s, utm_m, utm_c, country, city, device, browser, os, lang, sw, dur, props) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
   const ev = [];
   for (let d = days - 1; d >= 0; d--) {
     const growth = 0.4 + (days - d) / days * 1.6;
@@ -95,7 +99,15 @@ for (let i = 0; i < rows.length; i += 1000) await client.batch(rows.slice(i, i +
       let ts = ts0;
       for (let i = 0; i < pages; i++) {
         const path = i === 0 ? (rand() < 0.7 ? '/' : PAGES[Math.floor(rand() * PAGES.length)]) : PAGES[Math.floor(rand() * PAGES.length)];
-        ev.push({ sql: INS, args: [ts, day, 'pv', null, vh, path, i === 0 ? 1 : 0, i === 0 ? rf : null, i === 0 ? utm[0] : null, i === 0 ? utm[1] : null, cc, city, dev, br, os, 'en', dev === 'Phone' ? 390 : 1440, null, null] });
+        const viaShare = i === 0 && rand() < 0.14;
+        if (viaShare) ev.push({ sql: INS2, args: [ts, day, 'pv', null, vh, path, 1, null, ['whatsapp', 'whatsapp', 'x', 'instagram', 'copy', 'telegram'][Math.floor(rand() * 6)], 'share', 'share', cc, city, dev, br, os, 'en', dev === 'Phone' ? 390 : 1440, null, null] });
+        else ev.push({ sql: INS, args: [ts, day, 'pv', null, vh, path, i === 0 ? 1 : 0, i === 0 ? rf : null, i === 0 ? utm[0] : null, i === 0 ? utm[1] : null, cc, city, dev, br, os, 'en', dev === 'Phone' ? 390 : 1440, null, null] });
+        if (i === 0) {
+          const slow = dev === 'Phone' ? 1.5 : 1;
+          ev.push({ sql: INS, args: [ts + 3000, day, 'ev', 'perf', vh, '/', 0, null, null, null, cc, city, dev, br, os, 'en', null, null, JSON.stringify({ lcp: Math.round((900 + rand() * 2600) * slow), cls: Math.round(rand() * rand() * 300) / 1000, inp: Math.round(60 + rand() * 260 * slow), ttfb: Math.round(120 + rand() * 500), load: Math.round(700 + rand() * 1500 * slow) })] });
+          if (rand() < 0.03) ev.push({ sql: INS, args: [ts + 4000, day, 'ev', 'js_error', vh, '/', 0, null, null, null, cc, city, dev, br, os, 'en', null, null, JSON.stringify({ m: ['Cannot read properties of null', 'Failed to fetch', 'document.startViewTransition is not a function'][Math.floor(rand() * 3)], f: 'site.js', l: 120 + Math.floor(rand() * 40) })] });
+          if (rand() < 0.02) ev.push({ sql: INS, args: [ts + 4500, day, 'ev', 'not_found', vh, ['/q/nope', '/c/zz', '/old-page'][Math.floor(rand() * 3)], 0, null, null, null, cc, city, dev, br, os, 'en', null, null, null] });
+        }
         const n = Math.floor(rand() * 4);
         for (let k = 0; k < n; k++) {
           const name = EVS[Math.floor(rand() * EVS.length)];

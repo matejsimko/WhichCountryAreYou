@@ -32,6 +32,11 @@ export function pageview(p) {
     u.s = q.get('utm_source') || q.get('ref') || q.get('source') || undefined;
     u.m = q.get('utm_medium') || undefined;
     u.c = q.get('utm_campaign') || undefined;
+    if (q.get('s')) { // someone shared a link with us: remember which channel it came through
+      u.s = q.get('s').slice(0, 20).toLowerCase(); u.m = 'share'; u.c = u.c || 'share';
+      q.delete('s');
+      try { history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); } catch { /* ignore */ }
+    }
   }
   send({ k: 'pv', p, r: landing ? document.referrer : '', u, w: innerWidth, l: navigator.language, e: landing ? 1 : 0 });
   landing = false;
@@ -41,7 +46,43 @@ export function track(name, props) {
   send({ k: 'ev', n: name, p: location.pathname, x: props });
 }
 
+// ---------- performance (Core Web Vitals) and errors
+function initHealth() {
+  const first = location.pathname;
+  if (first.startsWith('/admin')) return;
+  let lcp = 0, cls = 0, inp = 0;
+  const watch = (type, fn, extra = {}) => { try { new PerformanceObserver((l) => fn(l.getEntries())).observe({ type, buffered: true, ...extra }); } catch { /* not supported */ } };
+  watch('largest-contentful-paint', (e) => { lcp = e[e.length - 1].startTime; });
+  watch('layout-shift', (e) => { for (const x of e) if (!x.hadRecentInput) cls += x.value; });
+  watch('event', (e) => { for (const x of e) inp = Math.max(inp, x.duration); }, { durationThreshold: 40 });
+  let sent = false;
+  const flush = () => {
+    if (sent) return;
+    sent = true;
+    const nav = performance.getEntriesByType('navigation')[0];
+    send({ k: 'ev', n: 'perf', p: first, x: { lcp: Math.round(lcp), cls: Math.round(cls * 1000) / 1000, inp: Math.round(inp), ttfb: nav ? Math.round(nav.responseStart) : 0, load: nav ? Math.round(nav.loadEventEnd) : 0 } });
+  };
+  addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+  addEventListener('pagehide', flush);
+
+  let errs = 0;
+  const report = (m, f, l) => {
+    if (errs++ >= 5 || /ResizeObserver loop/i.test(String(m))) return;
+    track('js_error', { m: String(m).slice(0, 90), f: String(f || '').split('/').pop().slice(0, 40), l: l || 0 });
+  };
+  addEventListener('error', (e) => report(e.message, e.filename, e.lineno));
+  addEventListener('unhandledrejection', (e) => report('promise: ' + (e.reason?.message || e.reason), '', 0));
+
+  // links that leave the site
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest?.('a[href]');
+    if (!a) return;
+    try { const u = new URL(a.href, location.href); if (u.origin !== location.origin && /^https?:$/.test(u.protocol)) track('outbound', { h: u.hostname.replace(/^www\./, '').slice(0, 60) }); } catch { /* ignore */ }
+  }, { capture: true });
+}
+
 export function initTracking() {
+  initHealth();
   addEventListener('wcay:track', (e) => track(e.detail?.name, e.detail?.props));
 
   // how far down the page people get, and how long the tab is actually visible

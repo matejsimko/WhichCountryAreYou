@@ -10,15 +10,17 @@ const emit = (name, props) => dispatchEvent(new CustomEvent('wcay:track', { deta
 
 export function openShare({ title, text, url, toast, card }) {
   closeShare();
+  // every link we hand out carries ?s=<channel>, so we can see how many new visitors each share brings (the viral loop)
+  const tagged = (ch) => { try { const x = new URL(url); x.searchParams.set('s', ch); return x.toString(); } catch { return url; } };
   emit('share_open', { q: (url.split('/q/')[1] || url.split('/c/')[1] || 'home').slice(0, 30) });
   const enc = encodeURIComponent;
   const targets = [
-    { id: 'whatsapp', label: 'WhatsApp', bg: '#25D366', href: `https://wa.me/?text=${enc(`${text} ${url}`)}` },
-    { id: 'x', label: 'X', bg: '#111', href: `https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}` },
+    { id: 'whatsapp', label: 'WhatsApp', bg: '#25D366', href: `https://wa.me/?text=${enc(`${text} ${tagged('whatsapp')}`)}` },
+    { id: 'x', label: 'X', bg: '#111', href: `https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(tagged('x'))}` },
     { id: 'instagram', label: 'Instagram', bg: 'linear-gradient(45deg,#FEDA75,#FA7E1E 30%,#D62976 60%,#962FBF 80%,#4F5BD5)', copy: true, href: 'https://www.instagram.com/', note: 'Link copied. Paste it in a story or message.' },
-    { id: 'facebook', label: 'Facebook', bg: '#1877F2', href: `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}` },
-    { id: 'telegram', label: 'Telegram', bg: '#26A5E4', href: `https://t.me/share/url?url=${enc(url)}&text=${enc(text)}` },
-    { id: 'reddit', label: 'Reddit', bg: '#FF4500', href: `https://www.reddit.com/submit?url=${enc(url)}&title=${enc(title)}` },
+    { id: 'facebook', label: 'Facebook', bg: '#1877F2', href: `https://www.facebook.com/sharer/sharer.php?u=${enc(tagged('facebook'))}` },
+    { id: 'telegram', label: 'Telegram', bg: '#26A5E4', href: `https://t.me/share/url?url=${enc(tagged('telegram'))}&text=${enc(text)}` },
+    { id: 'reddit', label: 'Reddit', bg: '#FF4500', href: `https://www.reddit.com/submit?url=${enc(tagged('reddit'))}&title=${enc(title)}` },
   ];
   const el = document.createElement('div');
   el.className = 'modal';
@@ -52,12 +54,13 @@ export function openShare({ title, text, url, toast, card }) {
       const file = new File([blob], 'which-country-are-you.png', { type: 'image/png' });
       const canFile = navigator.canShare?.({ files: [file] });
       el.querySelector('.share-card-box').innerHTML = `<img class="share-card" src="${src}" alt="Your share card"><div class="share-card-actions"><a class="btn alt mini" href="${src}" download="which-country-are-you.png" data-img="save">Save image</a>${canFile ? '<button class="btn mini" type="button" data-img="share">Share image</button>' : ''}</div>`;
-      el.querySelector('[data-img="share"]')?.addEventListener('click', async () => { try { await navigator.share({ files: [file], title, text }); emit('share_image', { a: 'share' }); mark('share'); } catch { /* dismissed */ } });
+      el.querySelector('[data-img="share"]')?.addEventListener('click', async () => { try { await navigator.share({ files: [file], title, text, url: tagged('image') }); emit('share_image', { a: 'share' }); mark('share'); } catch { /* dismissed */ } });
       el.querySelector('[data-img="save"]')?.addEventListener('click', () => { emit('share_image', { a: 'save' }); mark('share'); });
     });
   }
-  async function copy() {
-    try { await navigator.clipboard.writeText(url); return true; } catch { input.select(); try { return document.execCommand('copy'); } catch { return false; } }
+  async function copy(ch = 'copy') {
+    const link = tagged(ch);
+    try { await navigator.clipboard.writeText(link); return true; } catch { input.value = link; input.select(); try { return document.execCommand('copy'); } catch { return false; } }
   }
   el.addEventListener('click', async (e) => {
     if (e.target.closest('[data-close]')) return closeShare(prevFocus);
@@ -72,10 +75,10 @@ export function openShare({ title, text, url, toast, card }) {
       setTimeout(() => (b.textContent = 'Copy link'), 1800);
       return;
     }
-    if (id === 'native') { try { await navigator.share({ title, text, url }); mark('share'); } catch { /* dismissed */ } return; }
-    if (id === 'mail') { location.href = `mailto:?subject=${enc(title)}&body=${enc(`${text}\n${url}`)}`; mark('share'); return; }
+    if (id === 'native') { try { await navigator.share({ title, text, url: tagged('native') }); mark('share'); } catch { /* dismissed */ } return; }
+    if (id === 'mail') { location.href = `mailto:?subject=${enc(title)}&body=${enc(`${text}\n${tagged('mail')}`)}`; mark('share'); return; }
     const t = targets.find((x) => x.id === id);
-    if (t.copy) { await copy(); toast?.(t.note); }
+    if (t.copy) { await copy(t.id); toast?.(t.note); }
     window.open(t.href, '_blank', 'noopener');
     mark('share');
   });

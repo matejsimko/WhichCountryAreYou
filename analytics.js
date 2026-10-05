@@ -133,7 +133,7 @@ export async function stats(rangeDays) {
   const msFrom = dayMs(from);
   const R = [from, to];
 
-  const [cur, prev, daily, vdaily, countries, cities, sources, campaigns, pages, entries, pageDur, devices, browsers, oses, langs, widths, events, props, hours, weekdays, feed, live, topQ, totals, ever] = await Promise.all([
+  const [cur, prev, daily, vdaily, countries, cities, sources, campaigns, pages, entries, pageDur, devices, browsers, oses, langs, widths, events, props, hours, weekdays, feed, live, topQ, totals, ever, viralRows, sharersRow, retSeries, retSummary, retDist, perfRows, errRows, nfRows, veRows, obRows] = await Promise.all([
     kpis(from, to),
     kpis(pFrom, pTo),
     rows(`SELECT day, COUNT(DISTINCT vh) AS visitors, SUM(kind='pv') AS views, COUNT(DISTINCT CASE WHEN kind='ev' AND name='vote' THEN vh END) AS voters FROM ev WHERE day BETWEEN ? AND ? GROUP BY day`, R),
@@ -159,6 +159,24 @@ export async function stats(rangeDays) {
     rows(`SELECT question_id AS q, SUM(n) AS n FROM counts GROUP BY question_id ORDER BY n DESC LIMIT 40`),
     rows(`SELECT (SELECT COALESCE(SUM(n), 0) FROM counts) AS votes, (SELECT COUNT(*) FROM counts WHERE question_id = 'country' AND n > 0) AS countries, (SELECT COUNT(DISTINCT device_id) FROM votes) AS devices`),
     rows('SELECT COUNT(*) AS n, MIN(ts) AS first, MAX(ts) AS last FROM ev'),
+    // viral loop: visits that arrived through a link someone shared (?s=channel)
+    rows(`SELECT utm_s AS s, COUNT(DISTINCT vh||day) AS n FROM ev WHERE kind='pv' AND entry=1 AND utm_m='share' AND day BETWEEN ? AND ? GROUP BY utm_s ORDER BY n DESC`, R),
+    rows(`SELECT COUNT(DISTINCT vh||day) AS n FROM ev WHERE kind='ev' AND name IN ('share_click','share_done') AND day BETWEEN ? AND ?`, R),
+    // retention, from the votes table (the functional device cookie): new vs returning voting devices per day
+    rows(`WITH v AS (SELECT device_id, date(created_at / 1000, 'unixepoch') AS d FROM votes GROUP BY device_id, d),
+               f AS (SELECT device_id, MIN(d) AS first FROM v GROUP BY device_id)
+          SELECT v.d AS day, SUM(CASE WHEN v.d = f.first THEN 1 ELSE 0 END) AS fresh, SUM(CASE WHEN v.d > f.first THEN 1 ELSE 0 END) AS back
+          FROM v JOIN f USING (device_id) WHERE v.d >= ? GROUP BY v.d`, [from]),
+    rows(`SELECT COUNT(*) AS devices, COALESCE(SUM(CASE WHEN d >= 2 THEN 1 ELSE 0 END), 0) AS back2, COALESCE(SUM(CASE WHEN d >= 3 THEN 1 ELSE 0 END), 0) AS back3
+          FROM (SELECT device_id, COUNT(DISTINCT date(created_at / 1000, 'unixepoch')) AS d FROM votes GROUP BY device_id)`),
+    rows(`SELECT CASE WHEN n = 1 THEN '1 answer' WHEN n < 5 THEN '2 to 4' WHEN n < 10 THEN '5 to 9' WHEN n < 20 THEN '10 to 19' ELSE '20 or more' END AS k, COUNT(*) AS c
+          FROM (SELECT device_id, COUNT(*) AS n FROM votes GROUP BY device_id) GROUP BY k`),
+    // performance and health
+    rows(`SELECT device, props FROM ev WHERE kind='ev' AND name='perf' AND day BETWEEN ? AND ? ORDER BY id DESC LIMIT 4000`, R),
+    rows(`SELECT json_extract(props,'$.m') AS m, json_extract(props,'$.f') AS f, COUNT(*) AS n, COUNT(DISTINCT vh||day) AS u, MAX(ts) AS last, MIN(browser) AS b FROM ev WHERE kind='ev' AND name='js_error' AND day BETWEEN ? AND ? GROUP BY m, f ORDER BY n DESC LIMIT 20`, R),
+    rows(`SELECT path, COUNT(*) AS n FROM ev WHERE kind='ev' AND name='not_found' AND day BETWEEN ? AND ? GROUP BY path ORDER BY n DESC LIMIT 15`, R),
+    rows(`SELECT json_extract(props,'$.s') AS s, COUNT(*) AS n FROM ev WHERE kind='ev' AND name='vote_error' AND day BETWEEN ? AND ? GROUP BY s ORDER BY n DESC`, R),
+    rows(`SELECT json_extract(props,'$.h') AS h, COUNT(*) AS n FROM ev WHERE kind='ev' AND name='outbound' AND day BETWEEN ? AND ? GROUP BY h ORDER BY n DESC LIMIT 12`, R),
   ]);
 
   // fill every day of the range, so charts have no gaps
@@ -186,6 +204,21 @@ export async function stats(rangeDays) {
     }
   }
 
+  // Core Web Vitals: 75th percentile per metric, plus the share of good / needs work / poor
+  const pctl = (arr, p) => { if (!arr.length) return null; const s = [...arr].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+  const LIM = { lcp: [2500, 4000], cls: [0.1, 0.25], inp: [200, 500], ttfb: [800, 1800] };
+  const perfBy = { all: {}, Phone: {}, Desktop: {} };
+  const pv = { all: [], Phone: [], Desktop: [] };
+  for (const r of perfRows) { let p; try { p = JSON.parse(r.props); } catch { continue; } pv.all.push(p); if (pv[r.device]) pv[r.device].push(p); }
+  for (const [grp, list] of Object.entries(pv)) {
+    for (const m of ['lcp', 'cls', 'inp', 'ttfb', 'load']) {
+      const vals = list.map((x) => Number(x[m])).filter((x) => Number.isFinite(x) && (m === 'cls' || x > 0));
+      const p75 = pctl(vals, 0.75);
+      const lim = LIM[m];
+      perfBy[grp][m] = { p75, n: vals.length, good: lim ? vals.filter((x) => x <= lim[0]).length : 0, poor: lim ? vals.filter((x) => x > lim[1]).length : 0 };
+    }
+  }
+  const viralTotal = viralRows.reduce((s, r) => s + num(r.n), 0);
   const durMap = new Map(pageDur.map((r) => [r.path, r]));
   const out = {
     generatedAt: Date.now(), range: { days: rangeDays, from, to, prevFrom: pFrom, prevTo: pTo },
@@ -216,6 +249,17 @@ export async function stats(rangeDays) {
     feed: feed.map((r) => ({ ts: num(r.ts), kind: r.kind, name: r.name, path: r.path, country: r.country, city: r.city, device: r.device, browser: r.browser, props: r.props })),
     live: num(live[0].n),
     questions: topQ.map((r) => ({ q: r.q, n: num(r.n) })),
+    viral: { visitors: viralTotal, share: cur.visitors ? viralTotal / cur.visitors : 0, sharers: num(sharersRow[0].n), perSharer: num(sharersRow[0].n) ? viralTotal / num(sharersRow[0].n) : 0, bySource: viralRows.map((r) => ({ s: r.s, n: num(r.n) })) },
+    retention: {
+      devices: num(retSummary[0].devices), back2: num(retSummary[0].back2), back3: num(retSummary[0].back3),
+      series: (() => { const m = new Map(retSeries.map((r) => [r.day, r])); return Array.from({ length: rangeDays }, (_, i) => { const d = dayAdd(from, i); return { day: d, fresh: num(m.get(d)?.fresh), back: num(m.get(d)?.back) }; }); })(),
+      dist: ['1 answer', '2 to 4', '5 to 9', '10 to 19', '20 or more'].map((k) => ({ k, n: num(retDist.find((r) => r.k === k)?.c) })),
+    },
+    perf: perfBy,
+    errors: errRows.map((r) => ({ m: r.m, f: r.f, n: num(r.n), u: num(r.u), last: num(r.last), browser: r.b })),
+    notFound: nfRows.map((r) => ({ path: r.path, n: num(r.n) })),
+    voteErrors: veRows.map((r) => ({ s: r.s, n: num(r.n) })),
+    outbound: obRows.map((r) => ({ h: r.h, n: num(r.n) })),
     totals: { votes: num(totals[0].votes), countries: num(totals[0].countries), devices: num(totals[0].devices), events: num(ever[0].n), first: num(ever[0].first), last: num(ever[0].last) },
   };
   cache.set(key, { at: Date.now(), v: out });
