@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { QUESTIONS, CATEGORIES, FEATURED, questionById } from './questions.js';
 import * as db from './db.js';
 import * as analytics from './analytics.js';
+import { createSeo, INDEXNOW_KEY } from './seo.js';
 
 const TEMPLATE = fileURLToPath(new URL('./templates/index.html', import.meta.url));
 const PLACES = JSON.parse(fs.readFileSync(fileURLToPath(new URL('./public/places.json', import.meta.url)), 'utf8')); // built by scripts/build-places.js
@@ -26,6 +27,7 @@ function placeQuestion(id) {
   return placeCache.get(id);
 }
 const getQuestion = (id) => questionById.get(id) || placeQuestion(id);
+const seo = createSeo({ SITE_URL: (process.env.SITE_URL || 'https://whichcountryareyou.com').replace(/\/$/, ''), QUESTIONS, CATEGORIES, PLACES, getQuestion, countryLabel, db });
 
 const SECRET = process.env.SECRET || 'dev-only-secret-change-me';
 const SITE_URL = (process.env.SITE_URL || 'https://whichcountryareyou.com').replace(/\/$/, '');
@@ -75,7 +77,7 @@ function ensureDevice(req, res) {
 }
 
 function json(res, status, data) {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' });
   res.end(JSON.stringify(data));
 }
 
@@ -347,7 +349,9 @@ async function metaFor(pathname) {
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(url)}">
 <meta property="og:image" content="${SITE_URL}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${SITE_URL}/og.png"><meta name="twitter:title" content="${esc(title)}"><meta name="twitter:description" content="${esc(desc)}">
-<link rel="canonical" href="${esc(url)}">`;
+<link rel="canonical" href="${esc(url)}">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+<meta name="author" content="Matej Simko"><link rel="alternate" type="text/plain" href="${SITE_URL}/llms.txt" title="llms.txt">`;
 }
 
 async function sendShell(res, pathname, status = 200) {
@@ -355,7 +359,9 @@ async function sendShell(res, pathname, status = 200) {
   let meta = '<title>Which Country Are You?</title>';
   try { meta = await metaFor(pathname); } catch (err) { console.error('meta failed', err); } // a DB hiccup must not blank the page
   const analytics = process.env.VERCEL ? '<script defer src="/_vercel/insights/script.js"></script>' : '';
-  const html = fs.readFileSync(TEMPLATE, 'utf8').replace('<!--META-->', meta).replace('<!--ANALYTICS-->', analytics);
+  let extras = { schema: '', body: '' };
+  if (status === 200 && !noindex) { try { extras = await seo.pageExtras(pathname.replace(/\/$/, '') || '/'); } catch (err) { console.error('seo failed', err); } }
+  const html = fs.readFileSync(TEMPLATE, 'utf8').replace('<!--META-->', meta + extras.schema).replace('<main id="app" tabindex="-1"></main>', `<main id="app" tabindex="-1">${extras.body}</main>`).replace('<!--ANALYTICS-->', analytics);
   res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache', ...(noindex ? { 'x-robots-tag': 'noindex, nofollow' } : {}) });
   res.end(html);
 }
@@ -374,15 +380,12 @@ export async function handle(req, res) {
 
     if (pathname.startsWith('/api/')) return await api(req, res, pathname);
 
-    if (pathname === '/robots.txt') {
-      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
-      return res.end(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${SITE_URL}/sitemap.xml\n`);
-    }
-    if (pathname === '/sitemap.xml') {
-      const urls = ['/', '/explore', '/map', '/about', ...QUESTIONS.map((q) => `/q/${q.id}`), ...QUESTIONS[0].options.map((o) => `/c/${o.id.toLowerCase()}`)];
-      res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8' });
-      return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${SITE_URL}${u}</loc></url>`).join('')}</urlset>`);
-    }
+    const text = (body, type = 'text/plain; charset=utf-8', age = 3600) => { res.writeHead(200, { 'content-type': type, 'cache-control': `public, max-age=${age}, s-maxage=${age}` }); res.end(body); };
+    if (pathname === '/robots.txt') return text(seo.robots());
+    if (pathname === '/sitemap.xml') return text(seo.sitemap(), 'application/xml; charset=utf-8');
+    if (pathname === '/llms.txt') return text(seo.llms());
+    if (pathname === '/llms-full.txt') return text(await seo.llmsFull(), 'text/plain; charset=utf-8', 600);
+    if (pathname === `/${INDEXNOW_KEY}.txt`) return text(INDEXNOW_KEY);
 
     const cm2 = /^\/c\/([a-z]{2})\/?$/.exec(pathname);
     if (cm2) return await sendShell(res, pathname, countryLabel.has(cm2[1].toUpperCase()) ? 200 : 404);

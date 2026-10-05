@@ -14,7 +14,8 @@
     "seed:clear": "node scripts/seed-demo.js --clear",
     "build:map": "node scripts/build-map.js",
     "build:places": "node scripts/build-places.js",
-    "build:og": "node scripts/build-og.js"
+    "build:og": "node scripts/build-og.js",
+    "indexnow": "node scripts/indexnow.js"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0"

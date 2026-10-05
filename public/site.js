@@ -7,6 +7,7 @@ import { initTour, tourState } from './tour.js';
 import { initTracking, pageview } from './track.js';
 import { sfx, initSfx } from './sfx.js';
 import { openFeedback } from './feedback.js';
+import { FAQ } from './faq.js';
 
 const app = document.getElementById('app');
 const root = document.documentElement;
@@ -623,6 +624,8 @@ function about() {
     <p>Anyone can vote and nobody is verified, so this is a game and not a survey. It's still fun to watch the bars move.</p>
     <h2>Flags and credits</h2>
     <p>Flag artwork comes from the open-source flag-icons project (MIT). Map outlines come from Natural Earth (public domain). Social icons come from Simple Icons (CC0). Where a language or cuisine gets a flag, it's just the best-known country for it, not a claim about who owns it.</p>
+    <h2>Frequently asked questions</h2>
+    ${FAQ.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join('')}
     <p>Pinny, the pin on the hill, says hi. Try clicking things. Some of them do something.</p>
   </div></div>`;
 }

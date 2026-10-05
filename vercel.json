@@ -15,6 +15,18 @@
       "destination": "/api/index?route=sitemap.xml"
     },
     {
+      "source": "/llms.txt",
+      "destination": "/api/index?route=llms.txt"
+    },
+    {
+      "source": "/llms-full.txt",
+      "destination": "/api/index?route=llms-full.txt"
+    },
+    {
+      "source": "/f9b0d72bd23251ea78cc1840b4878e29.txt",
+      "destination": "/api/index?route=f9b0d72bd23251ea78cc1840b4878e29.txt"
+    },
+    {
       "source": "/",
       "destination": "/api/index?route="
     },
@@ -49,7 +61,7 @@
   ],
   "functions": {
     "api/index.js": {
-      "includeFiles": "{templates/**,public/places.json}",
+      "includeFiles": "{templates/**,public/places.json,public/faq.js}",
       "maxDuration": 10
     }
   },

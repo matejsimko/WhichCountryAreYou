@@ -29,7 +29,7 @@ function sendFile(req, res, file) {
 
 http.createServer((req, res) => {
   const { pathname } = new URL(req.url, 'http://localhost');
-  if (path.extname(pathname) && !pathname.startsWith('/api/') && pathname !== '/sitemap.xml' && pathname !== '/robots.txt') {
+  if (path.extname(pathname) && !pathname.startsWith('/api/') && !['/sitemap.xml', '/robots.txt', '/llms.txt', '/llms-full.txt'].includes(pathname) && !/^\/[a-f0-9]{32}\.txt$/.test(pathname)) {
     const file = path.normalize(path.join(PUBLIC, decodeURIComponent(pathname)));
     if (!file.startsWith(PUBLIC + path.sep)) { res.writeHead(404); return res.end('Not found'); }
     return sendFile(req, res, file);
