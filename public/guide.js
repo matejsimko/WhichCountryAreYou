@@ -11,7 +11,7 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 export function initGuide(ctx) {
-  const { pinnySVG, esc, flagImg, level, fmtTime, getMe, evaluate, getList, mineMap, go, confetti, ACHIEVEMENTS, startTour, tourActive, tourState } = ctx;
+  const { pinnySVG, esc, flagImg, level, fmtTime, getMe, evaluate, getList, mineMap, go, confetti, ACHIEVEMENTS, startTour, tourActive, tourState, tipFor, lineFor } = ctx;
 
   const el = document.createElement('div');
   el.className = 'guide';
@@ -95,7 +95,7 @@ export function initGuide(ctx) {
       setPos(from);
       homePin.style.visibility = 'hidden';
       await flyTo(homeSpot(), { ms: 1500, spin: 1 });
-      if (current && !bubbleOpen() && !offering) say(current.dataset.guide, 3200);
+      if (current && !bubbleOpen() && !offering) say(tipOf(current), 3200);
     } else {
       // he flies back to the hill
       mode = 'home';
@@ -109,8 +109,11 @@ export function initGuide(ctx) {
   // ---------- speech bubble (short on purpose)
   let bubbleTimer;
   const bubbleOpen = () => !bubble.hidden;
-  function say(text, ms = 3600) {
-    if (hidden || !text || mode === 'home') return;
+  let lastSaid = '', lastSaidAt = 0;
+  function say(text, ms = 3600, force = false) {
+    if (hidden || !text || mode === 'home' || tourActive?.()) return;
+    if (!force && text === lastSaid && Date.now() - lastSaidAt < 25000) return;
+    lastSaid = text; lastSaidAt = Date.now();
     bubble.classList.remove('has-actions'); bubble.onclick = null;
     bubble.textContent = text;
     bubble.dataset.side = side;
@@ -119,6 +122,7 @@ export function initGuide(ctx) {
     clearTimeout(bubbleTimer);
     bubbleTimer = setTimeout(() => { bubble.hidden = true; }, ms);
   }
+  const tipOf = (t) => (tipFor ? tipFor(t.dataset.guide, t) : t.dataset.guide);
   function mood(m) { if (pin && m) pin.dataset.mood = m; }
   const actor = () => (mode === 'home' && homePin ? homePin : pin); // whoever is on screen right now
 
@@ -194,8 +198,8 @@ export function initGuide(ctx) {
         if (!first && !busy && panel.hidden) {
           side = side === 'right' ? 'left' : 'right';
           bubble.hidden = true;
-          flyTo(homeSpot(), { ms: 1200, spin: 1, arc: 80 }).then(() => say(e.target.dataset.guide));
-        } else say(e.target.dataset.guide);
+          flyTo(homeSpot(), { ms: 1200, spin: 1, arc: 80 }).then(() => say(tipOf(e.target)));
+        } else say(tipOf(e.target));
         poke();
       }
     }, { rootMargin: '-42% 0px -42% 0px' });
@@ -342,7 +346,7 @@ export function initGuide(ctx) {
 
   // ---------- reacts to what you do
   const LINES = { vote: ['Nice pick!', 'Ooh!', 'Good one!', 'Yes!'], badge: ['Badge!', 'Shiny!', 'Look at you!'], share: ['Thank you!', 'You rock!'], egg: ['You found one!', 'Sneaky!'] };
-  function react(kind) {
+  function react(kind, detail) {
     if (hidden) return;
     const a = actor();
     if (!a) return;
@@ -353,11 +357,11 @@ export function initGuide(ctx) {
     if (mode === 'float' && !panel.hidden === false && !tourActive?.()) {
       const [x, y] = centerOf();
       for (let i = 0; i < 5; i++) setTimeout(() => spark(x, y - 40, ['✨', '⭐', '🎉']), i * 70);
-      if (!bubbleOpen() || !bubble.classList.contains('has-actions')) say(pick(LINES[kind] || ['Yay!']), 1900);
+      if (!bubbleOpen() || !bubble.classList.contains('has-actions')) say(lineFor?.(kind, detail) || pick(LINES[kind] || ['Yay!']), 2600, true);
     }
   }
-  addEventListener('wcay:vote', () => react('vote'));
-  addEventListener('wcay:badge', () => react('badge'));
+  addEventListener('wcay:vote', (e) => react('vote', e.detail));
+  addEventListener('wcay:badge', (e) => react('badge', e.detail));
   addEventListener('wcay:mark', (e) => { const k = e.detail?.kind; if (k === 'egg') react('egg'); else if (k === 'share') react('share'); });
 
   // ---------- pick him up and carry him around

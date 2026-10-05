@@ -364,7 +364,7 @@ function mountBlock(el, d, ctx = {}) {
       reward = d.options.find((o) => o.id === optionId)?.reward || null;
       draw();
       sfx.vote();
-      dispatchEvent(new CustomEvent('wcay:vote'));
+      dispatchEvent(new CustomEvent('wcay:vote', { detail: voteDetail(d, optionId) }));
       if (ev) confetti(ev.clientX, ev.clientY);
       if (changed) mark('changed');
       ctx.onVoted?.(d);
@@ -435,6 +435,7 @@ function mountFinder(el, d) {
       detailCache.set('country', r);
       listCache = null;
       sfx.vote();
+      dispatchEvent(new CustomEvent('wcay:vote', { detail: voteDetail(r, id) }));
       const rect = input.getBoundingClientRect();
       confetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
       go('/q/country');
@@ -471,7 +472,7 @@ async function home() {
     <section class="hero">
       ${skySVG()}
       <div class="bunting" id="bunting"></div>
-      <div class="wrap hero-copy" data-guide="Type your country!" data-guide-mood="wow">
+      <div class="wrap hero-copy" data-guide="hero" data-guide-mood="wow">
         <h1 class="display title" aria-label="Which country are you?"><span class="w w1">Which</span> <span class="w w2">country</span><br><span class="w w3">are</span> <span class="w w4">you?</span></h1>
         <p class="hero-sub">Say where you're from. Vote on everything else. Watch the whole world answer.</p>
       </div>
@@ -479,16 +480,16 @@ async function home() {
       ${hillsSVG()}
     </section>
     <div class="wrap">
-      ${top.length ? `<section class="section" aria-labelledby="world" data-guide="Who's leading?"><div class="section-head"><h2 id="world">Who's here so far</h2><a class="link" href="/q/country" data-link>See all countries</a></div><div class="sticker-row">${top.map((o, i) => `<a class="sticker" style="--i:${i}" href="/q/country" data-link>${flagImg(flagOf(o))}<span>${esc(o.label)}</span><small class="num">${pctText((o.c / country.total) * 100, true)}</small></a>`).join('')}</div></section>` : ''}
-      <section class="section" aria-labelledby="mapt" data-guide="Zoom, drag, tap!" data-guide-mood="wow">
+      ${top.length ? `<section class="section" aria-labelledby="world" data-guide="leaders"><div class="section-head"><h2 id="world">Who's here so far</h2><a class="link" href="/q/country" data-link>See all countries</a></div><div class="sticker-row">${top.map((o, i) => `<a class="sticker" style="--i:${i}" href="/q/country" data-link>${flagImg(flagOf(o))}<span>${esc(o.label)}</span><small class="num">${pctText((o.c / country.total) * 100, true)}</small></a>`).join('')}</div></section>` : ''}
+      <section class="section" aria-labelledby="mapt" data-guide="map" data-guide-mood="wow">
         <div class="section-head"><h2 id="mapt">Watch the world fill in</h2><a class="link" href="/map" data-link>Open the full map</a></div>
         <div id="map-slot" class="map-slot"></div>
       </section>
-      <section class="section" aria-labelledby="quick" data-guide="Vote! Change it anytime." data-guide-mood="cool">
+      <section class="section" aria-labelledby="quick" data-guide="quick" data-guide-mood="cool">
         <div class="section-head"><h2 id="quick">While you're here</h2><a class="link" href="/explore" data-link>All ${s.questions} questions</a></div>
         <div class="grid">${feat.map((d) => `<article class="card paper hued" style="--h:${d.hue}"><span class="card-tag">${esc(catLabel(list, d.category))}</span><h3 class="card-q"><a href="/q/${esc(d.id)}" data-link>${esc(d.prompt)}</a></h3><div data-block="${esc(d.id)}"></div></article>`).join('')}</div>
       </section>
-      <section class="section" style="text-align:center" data-guide="25 questions. Hungry?" data-guide-mood="party"><a class="btn" href="/explore" data-link>See every question ${ARROW}</a></section>
+      <section class="section" style="text-align:center" data-guide="more" data-guide-mood="party"><a class="btn" href="/explore" data-link>See every question ${ARROW}</a></section>
     </div></div>`;
 
   buildBunting(app.querySelector('#bunting'));
@@ -499,7 +500,7 @@ async function home() {
 }
 
 // the interactive map is loaded only when someone gets near it
-const mapCtx = () => ({ esc, fmt, pctText, flagImg, go, getList, getDetail, track: mark, toast, vote: async (questionId, optionId) => { const r = await api('/vote', { questionId, optionId }); detailCache.set(questionId, r); if (listCache) (listCache.placeMine ||= {})[questionId] = r.mine; sfx.vote(); dispatchEvent(new CustomEvent('wcay:vote')); checkAchievements(); return r; }, celebrate: confetti });
+const mapCtx = () => ({ esc, fmt, pctText, flagImg, go, getList, getDetail, track: mark, toast, vote: async (questionId, optionId) => { const r = await api('/vote', { questionId, optionId }); detailCache.set(questionId, r); if (listCache) (listCache.placeMine ||= {})[questionId] = r.mine; sfx.vote(); dispatchEvent(new CustomEvent('wcay:vote', { detail: voteDetail(r, optionId) })); checkAchievements(); return r; }, celebrate: confetti });
 function lazyMap(slot, opts) {
   const start = async () => {
     try { const { mountMap } = await import('/map.js'); await mountMap(slot, mapCtx(), opts); mark('map'); }
@@ -512,7 +513,7 @@ function lazyMap(slot, opts) {
 
 async function mapPage() {
   setHue(178);
-  app.innerHTML = `<div class="view wrap map-page"><div class="page-head" data-guide="Scroll to zoom!" data-guide-mood="wow"><p class="eyebrow">The map</p><h1 class="display">The world, answered.</h1><p>Zoom in on a continent or tap a country to see how it voted.</p></div><div id="map-slot" class="map-slot"></div></div>`;
+  app.innerHTML = `<div class="view wrap map-page"><div class="page-head" data-guide="mappage" data-guide-mood="wow"><p class="eyebrow">The map</p><h1 class="display">The world, answered.</h1><p>Zoom in on a continent or tap a country to see how it voted.</p></div><div id="map-slot" class="map-slot"></div></div>`;
   const q = new URLSearchParams(location.search).get('q');
   await new Promise((r) => requestAnimationFrame(r));
   lazyMap(app.querySelector('#map-slot'), { wheel: true, question: q });
@@ -532,7 +533,7 @@ async function explore() {
       }).join('')}</ul></section>`;
     }).join('');
   };
-  app.innerHTML = `<div class="view wrap"><div class="page-head" data-guide="Pick one!" data-guide-mood="happy"><p class="eyebrow">${list.stats.questions} questions</p><h1 class="display">Ask the world anything.</h1><p>Every question, with the answers so far. Pick one.</p></div>
+  app.innerHTML = `<div class="view wrap"><div class="page-head" data-guide="explore" data-guide-mood="happy"><p class="eyebrow">${list.stats.questions} questions</p><h1 class="display">Ask the world anything.</h1><p>Every question, with the answers so far. Pick one.</p></div>
     <div class="chips explore-chips" id="chips"><button class="chip" type="button" data-cat="all" aria-pressed="true">Everything</button>${list.categories.map((c) => `<button class="chip" type="button" data-cat="${c.id}" aria-pressed="false">${esc(c.label)}</button>`).join('')}</div>
     <div id="cats"></div></div>`;
   app.querySelector('#chips').addEventListener('click', (e) => {
@@ -548,16 +549,17 @@ async function explore() {
 async function questionPage(id) {
   const [d, list] = await Promise.all([getDetail(id, true), getList()]);
   setHue(d.hue);
+  pageQ = d;
   document.title = `${d.prompt} · Which Country Are You?`;
   app.innerHTML = `<div class="view wrap q-page">
     <a class="back" href="${d.country ? '/q/country' : '/explore'}" data-link>${BACK} ${d.country ? 'Back to countries' : 'All questions'}</a>
-    <div class="q-head hued" style="--h:${d.hue}" data-guide="${d.country ? 'Pick your city or region. Search works too.' : 'Pick one. You can change your answer any time.'}">
+    <div class="q-head hued" style="--h:${d.hue}" data-guide="qhead">
       <p class="eyebrow">${esc(catLabel(list, d.category))}</p>
       <h1 class="display q-title">${esc(d.prompt)}</h1>
       <div class="q-sum" id="sum"></div>
     </div>
-    <div class="q-body" id="block" data-guide="Scroll, sort, filter." data-guide-mood="cool"></div>
-    <div class="q-after" id="after" data-guide="Share it!" data-guide-mood="party"></div>
+    <div class="q-body" id="block" data-guide="results" data-guide-mood="cool"></div>
+    <div class="q-after" id="after" data-guide="share" data-guide-mood="party"></div>
   </div>`;
 
   const sum = app.querySelector('#sum');
@@ -596,7 +598,7 @@ async function questionPage(id) {
 
 function about() {
   setHue(178);
-  app.innerHTML = `<div class="view wrap"><div class="page-head" data-guide="The story!" data-guide-mood="happy"><p class="eyebrow">About</p><h1 class="display">A small experiment with the whole world.</h1></div>
+  app.innerHTML = `<div class="view wrap"><div class="page-head" data-guide="about" data-guide-mood="happy"><p class="eyebrow">About</p><h1 class="display">A small experiment with the whole world.</h1></div>
   <div class="prose">
     <p>Which Country Are You started as a question: <em>how many different people can we get to answer the same simple questions?</em> Where are you from, cats or dogs, coffee or tea. No accounts, no sign-up, nothing to win. Just a place where anyone can drop in, vote, and see the internet answer back.</p>
     <h2>How it began</h2>
@@ -621,6 +623,61 @@ function notFound() {
 }
 
 
+
+// ---------- Pinny's brain: messages that depend on what you've actually done
+let pageQ = null; // the question page currently open
+function guideTip(key) {
+  const qs = listCache?.questions || [];
+  const total = qs.length || 25;
+  const n = qs.filter((q) => q.mine).length;
+  const left = total - n;
+  const cname = qs.find((q) => q.id === 'country')?.mineOpt?.label;
+  const q = pageQ;
+  const lvl = level(n, total);
+  switch (key) {
+    case 'hero': return !cname ? 'Start here. Type your country!' : n < 4 ? `Welcome, ${cname}! Try a quick vote.` : left ? `Welcome back! ${left} questions left.` : 'Welcome back, you did them all!';
+    case 'leaders': {
+      const c = detailCache.get('country');
+      if (cname && c) { const sorted = Object.entries(c.counts).sort((x, y) => y[1] - x[1]); const rank = sorted.findIndex(([id]) => id === c.mine) + 1; if (rank) return `${cname} is #${rank} so far.`; }
+      return "These lead so far. Where's yours?";
+    }
+    case 'map': return cname ? `Find ${cname}. Zoom in for cities.` : 'The map fills up as people vote.';
+    case 'quick': return n === 0 ? 'Tap an answer. You can change it later.' : n < total ? `${n} of ${total} done. Keep going!` : 'All done. Change any answer you like.';
+    case 'more': return left ? `${left} more to answer. Hungry?` : 'You answered everything!';
+    case 'explore': return left ? `${left} still unanswered. Pick one!` : 'All answered! Revisit one?';
+    case 'qhead':
+      if (!q) return 'Pick an answer!';
+      if (q.kind === 'places') return q.mine ? 'Pin dropped! Change it anytime.' : 'Find your city or region.';
+      if (q.kind === 'countries') return q.mine ? 'Got it! Change it anytime.' : 'Find your country. Type to search.';
+      if (q.kind === 'duel') return q.mine ? 'Locked in. Change it anytime.' : 'Pick a side!';
+      return q.mine ? 'Locked in. Change it anytime.' : 'Pick one. Change it anytime.';
+    case 'results': return q?.mine ? (q.options.length > 14 ? 'Search, sort or scroll the list.' : 'This is how the world voted.') : 'Vote to reveal the results.';
+    case 'share': return q?.mine ? "Share it! I'll make a picture." : 'Vote first, then share it!';
+    case 'mappage': return cname ? `Tap ${cname}, then pick your city.` : 'Scroll to zoom. Tap a country.';
+    case 'passport': return `${lvl.title}. ${n} of ${total} answered.`;
+    case 'badges': {
+      const ev = evaluate(mineMap(), total);
+      const next = ACHIEVEMENTS.find((a) => !ev.earned.has(a.id) && !a.secret);
+      return next ? `Next badge: ${next.n}. ${next.d}` : 'All badges! Now hunt the secrets.';
+    }
+    case 'about': return 'Why this exists. Short read!';
+    default: return key;
+  }
+}
+const reactLine = (kind, d) => {
+  if (kind === 'vote' && d) {
+    if (d.id === 'country') return `Welcome, ${d.label}!`;
+    if (d.kind === 'places') return `${d.label}! Pin dropped.`;
+    if (d.duel) return d.pct >= 50 ? `Team ${d.label}! ${d.pct}% agree.` : `Bold! Only ${d.pct}% agree.`;
+    return `${d.label}! ${d.pct}% agree.`;
+  }
+  if (kind === 'badge') return d?.names?.length > 1 ? `${d.names.length} new badges!` : `Badge: ${d?.names?.[0] || 'new one'}!`;
+  if (kind === 'egg') return `Secret found! ${getMe().eggs.length} of ${EGGS_TOTAL}.`;
+  if (kind === 'share') return 'Thanks for sharing!';
+  return null;
+};
+const voteDetail = (r, optionId) => { const o = r.options.find((x) => x.id === optionId); const tot = Object.values(r.counts).reduce((s, v) => s + v, 0) || 1; return { id: r.id, label: o?.label || '', kind: r.kind, duel: r.options.length === 2, pct: Math.round(((r.counts[optionId] || 0) / tot) * 100) }; };
+
 // ---------- badges
 const mineMap = () => ({ ...Object.fromEntries((listCache?.questions || []).filter((q) => q.mine).map((q) => [q.id, q.mine])), ...(listCache?.placeMine || {}) });
 let toastQueue = Promise.resolve();
@@ -630,7 +687,7 @@ function checkAchievements() {
   if (!fresh.length) return;
   const lines = fresh.length > 2 ? [`🏅 ${fresh.length} new badges! Open your passport.`] : fresh.map((b) => `${b.e} Badge unlocked: ${b.n}`);
   sfx.badge();
-  dispatchEvent(new CustomEvent('wcay:badge'));
+  dispatchEvent(new CustomEvent('wcay:badge', { detail: { names: fresh.map((b) => b.n) } }));
   for (const line of lines) toastQueue = toastQueue.then(() => { toast(line); confetti(innerWidth / 2, innerHeight * 0.7); return new Promise((r) => setTimeout(r, 3300)); });
 }
 const afterVote = () => checkAchievements();
@@ -653,7 +710,7 @@ async function profilePage() {
     ['🥚', 'Secrets found', `${eggs}/${EGGS_TOTAL}`], ['📣', 'Times shared', me.shares], ['🔄', 'Changed my mind', me.changed],
   ];
   app.innerHTML = `<div class="view wrap profile">
-    <div class="page-head" data-guide="Your passport!" data-guide-mood="cool"><p class="eyebrow">Your passport</p><h1 class="display">${esc(lv.title)}</h1></div>
+    <div class="page-head" data-guide="passport" data-guide-mood="cool"><p class="eyebrow">Your passport</p><h1 class="display">${esc(lv.title)}</h1></div>
     <section class="passport paper">
       <div class="pp-avatar">${flag ? flagImg(flag) : '<span aria-hidden="true">🌍</span>'}</div>
       <div class="pp-main"><strong>${ev.n} of ${total} questions answered</strong><div class="xp" role="progressbar" aria-valuenow="${lv.pct}" aria-valuemin="0" aria-valuemax="100"><i style="--w:${lv.pct}"></i></div><span>${earnedCount} of ${ACHIEVEMENTS.length} badges collected</span></div>
@@ -661,7 +718,7 @@ async function profilePage() {
     </section>
     <div class="stat-grid">${tiles.map(([e, l, v]) => `<div class="stat"><span class="stat-e" aria-hidden="true">${e}</span><b class="num">${v}</b><small>${l}</small></div>`).join('')}</div>
     <div class="section-head" style="margin-top:44px"><h2>Badges</h2><span class="block-note">${earnedCount}/${ACHIEVEMENTS.length}</span></div>
-    <div class="badges" data-guide="Collect them all!" data-guide-mood="party">${ACHIEVEMENTS.map((a) => {
+    <div class="badges" data-guide="badges" data-guide-mood="party">${ACHIEVEMENTS.map((a) => {
       const on = ev.earned.has(a.id);
       const hide = a.secret && !on;
       return `<div class="badge ${on ? 'on' : 'off'}"><span class="badge-ic" aria-hidden="true">${hide ? '❓' : a.e}</span><strong>${hide ? 'Secret' : esc(a.n)}</strong><small>${hide ? 'Keep exploring. Poke things.' : esc(a.d)}</small></div>`;
@@ -694,6 +751,7 @@ const routes = [
 const TITLES = { '/': 'Which Country Are You?', '/explore': 'Every question', '/map': 'The map', '/profile': 'Your passport', '/about': 'About' };
 async function render() {
   const path = location.pathname;
+  if (!path.startsWith('/q/')) pageQ = null;
   const t = TITLES[path.replace(/\/$/, '') || '/'];
   document.title = t ? (t === 'Which Country Are You?' ? t : `${t} · Which Country Are You?`) : 'Which Country Are You?';
   document.querySelectorAll('.nav a, .tabbar a').forEach((a) => (a.getAttribute('href') === path ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
@@ -728,5 +786,5 @@ initEggs({ toast, confetti });
 let guide = null;
 const pinnySVG = () => `<svg viewBox="-62 -134 124 150" width="100%" height="100%" aria-hidden="true">${pinny(0, 0, 'mate', 1)}</svg>`;
 const tour = initTour({ go, pinnySVG, esc, confetti, sfx, mark, toast });
-guide = initGuide({ pinnySVG, startTour: () => tour.start(), tourActive: () => tour.active, tourState, esc, fmt, flagImg, level, fmtTime, getMe, evaluate, getList, mineMap, go, confetti, ACHIEVEMENTS });
+guide = initGuide({ tipFor: guideTip, lineFor: reactLine, pinnySVG, startTour: () => tour.start(), tourActive: () => tour.active, tourState, esc, fmt, flagImg, level, fmtTime, getMe, evaluate, getList, mineMap, go, confetti, ACHIEVEMENTS });
 render();

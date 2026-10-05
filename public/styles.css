@@ -565,9 +565,9 @@ span.rain { box-shadow: none; }
 
 
 /* ================= TOUR ================= */
-.tour-spot { position: fixed; z-index: 80; border-radius: 22px; box-shadow: 0 0 0 4px #fff, 0 0 0 9999px rgba(36, 50, 48, .58); pointer-events: none; transition: left .55s cubic-bezier(.3, 1, .3, 1), top .55s cubic-bezier(.3, 1, .3, 1), width .55s cubic-bezier(.3, 1, .3, 1), height .55s cubic-bezier(.3, 1, .3, 1), opacity .3s; animation: spotpulse 2.4s ease-in-out infinite; }
+.tour-spot { position: fixed; z-index: 80; left: 0; top: 0; border-radius: 22px; box-shadow: 0 0 0 4px #fff, 0 0 0 9999px rgba(36, 50, 48, .58); pointer-events: none; will-change: transform, width, height; animation: spotpulse 2.4s ease-in-out infinite; transition: opacity .3s; }
 @keyframes spotpulse { 50% { box-shadow: 0 0 0 7px rgba(255, 255, 255, .85), 0 0 0 9999px rgba(36, 50, 48, .58); } }
-.tour-card { position: fixed; z-index: 81; width: min(360px, calc(100vw - 24px)); padding: 16px 18px 14px; border-radius: 24px; background: var(--card); box-shadow: 0 0 0 2px var(--line), 0 24px 48px -14px rgba(20, 15, 5, .6); transition: left .55s cubic-bezier(.3, 1, .3, 1), top .55s cubic-bezier(.3, 1, .3, 1), opacity .3s; }
+.tour-card { position: fixed; z-index: 81; width: min(360px, calc(100vw - 24px)); padding: 16px 18px 14px; border-radius: 24px; background: var(--card); box-shadow: 0 0 0 2px var(--line), 0 24px 48px -14px rgba(20, 15, 5, .6); transition: opacity .3s; }
 .tour-card.in { animation: panelin .45s cubic-bezier(.2, 1.3, .3, 1) both; }
 .tour-spot.out, .tour-card.out { opacity: 0; }
 .tour-head { display: flex; align-items: center; gap: 12px; }
