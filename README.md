@@ -16,11 +16,11 @@ npm run seed:clear   # remove the demo votes
 | --- | --- |
 | `questions.js` | Every question, option and reward. Add one here and it appears everywhere. |
 | `core.js` | The request handler: API (`/api/questions`, `/api/vote`), abuse limits, pages. |
-| `server.js` | Local/Docker server around `core.js`. |
+| `dev-server.js` | Local/Docker server around `core.js`. |
 | `api/index.js` | Vercel function around `core.js`. |
 | `db.js` | libSQL (local file or Turso): one row per (question, device), plus a running tally. |
 | `templates/index.html` | HTML shell (meta tags are filled in per page). |
-| `public/app.js` | The whole frontend. |
+| `public/site.js` | The whole frontend. |
 | `public/styles.css` | All styling. One `--h` hue variable drives the colour of everything. |
 
 ## The map
@@ -80,7 +80,7 @@ Votes need a real database, because Vercel functions have no disk that survives.
 3. Redeploy. Tables are created automatically on the first request.
 4. Settings, Domains: add `whichcountryareyou.com`.
 
-`api/index.js` is the only function; `vercel.json` routes the API, pages and sitemap to it, and static files come from `public/`.
+The frontend is `public/site.js` and the local server `dev-server.js` on purpose: Vercel auto-detects files named `app.js` / `server.js` / `index.js` as the app entrypoint and would run them as the function. `api/index.js` is the only function; `vercel.json` routes the API, pages and sitemap to it, and static files come from `public/`.
 
 ## Local server / Docker
 

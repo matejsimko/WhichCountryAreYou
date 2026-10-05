@@ -1,18 +1,54 @@
 {
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index?route=api/:path*" },
-    { "source": "/robots.txt", "destination": "/api/index?route=robots.txt" },
-    { "source": "/sitemap.xml", "destination": "/api/index?route=sitemap.xml" },
-    { "source": "/", "destination": "/api/index?route=" },
-    { "source": "/explore", "destination": "/api/index?route=explore" },
-    { "source": "/map", "destination": "/api/index?route=map" },
-    { "source": "/profile", "destination": "/api/index?route=profile" },
-    { "source": "/about", "destination": "/api/index?route=about" },
-    { "source": "/c/:id", "destination": "/api/index?route=c/:id" },
-    { "source": "/q/:id", "destination": "/api/index?route=q/:id" }
+    {
+      "source": "/api/:path*",
+      "destination": "/api/index?route=api/:path*"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/api/index?route=robots.txt"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/index?route=sitemap.xml"
+    },
+    {
+      "source": "/",
+      "destination": "/api/index?route="
+    },
+    {
+      "source": "/explore",
+      "destination": "/api/index?route=explore"
+    },
+    {
+      "source": "/map",
+      "destination": "/api/index?route=map"
+    },
+    {
+      "source": "/profile",
+      "destination": "/api/index?route=profile"
+    },
+    {
+      "source": "/about",
+      "destination": "/api/index?route=about"
+    },
+    {
+      "source": "/c/:id",
+      "destination": "/api/index?route=c/:id"
+    },
+    {
+      "source": "/q/:id",
+      "destination": "/api/index?route=q/:id"
+    }
   ],
   "functions": {
-    "api/index.js": { "includeFiles": "{templates/**,public/places.json}", "maxDuration": 10 }
-  }
+    "api/index.js": {
+      "includeFiles": "{templates/**,public/places.json}",
+      "maxDuration": 10
+    }
+  },
+  "regions": [
+    "iad1"
+  ]
 }

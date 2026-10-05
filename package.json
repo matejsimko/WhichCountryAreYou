@@ -8,8 +8,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
+    "start": "node dev-server.js",
+    "dev": "node --watch dev-server.js",
     "seed": "node scripts/seed-demo.js",
     "seed:clear": "node scripts/seed-demo.js --clear",
     "build:map": "node scripts/build-map.js",

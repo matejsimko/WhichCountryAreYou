@@ -5,7 +5,7 @@
 //     { facts: ['...', '...'] }          rotating "did you know" cards
 //     { video: 'YOUTUBE_ID', title }     a video that plays inline (youtube-nocookie)
 //     { links: [{ label, href }] }       things to go explore
-//   Add more reward types in public/app.js -> rewardHTML().
+//   Add more reward types in public/site.js -> rewardHTML().
 
 export const CATEGORIES = [
   { id: 'where', label: "Where you're from" },

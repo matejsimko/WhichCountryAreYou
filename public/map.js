@@ -1,4 +1,4 @@
-// Interactive world map. Loaded on demand by app.js.
+// Interactive world map. Loaded on demand by site.js.
 // Country outlines come from /map.json (built by scripts/build-map.js); everything else is plain SVG + a tiny camera.
 
 const VIEWS = [['world', 'World'], ['europe', 'Europe'], ['asia', 'Asia'], ['africa', 'Africa'], ['na', 'North America'], ['sa', 'South America'], ['oceania', 'Oceania']];

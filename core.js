@@ -1,4 +1,4 @@
-// The app's request handler. Runs the same way locally (server.js) and on Vercel (api/index.js).
+// The app's request handler. Runs the same way locally (dev-server.js) and on Vercel (api/index.js).
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
