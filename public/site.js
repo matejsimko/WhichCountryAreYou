@@ -6,6 +6,7 @@ import { initGuide } from './guide.js';
 import { initTour, tourState } from './tour.js';
 import { initTracking, pageview } from './track.js';
 import { sfx, initSfx } from './sfx.js';
+import { openFeedback } from './feedback.js';
 
 const app = document.getElementById('app');
 const root = document.documentElement;
@@ -186,6 +187,7 @@ window.addEventListener('resize', () => {
 
 // footer: torn edge + a river of flags
 function initFooter() {
+  document.getElementById('foot-feedback')?.addEventListener('click', () => openFeedback());
   const r = rng(99);
   let d = '';
   for (let x = -10, i = 0; x <= 1450; x += 8, i++) d += `${i ? 'L' : 'M'}${x} ${(26 + Math.sin(x / 90) * 8 + Math.sin(x / 31) * 3 + (r() - 0.5) * 4).toFixed(1)}`;

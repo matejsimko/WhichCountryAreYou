@@ -141,6 +141,14 @@ function trackLimited(ip) { // someone hammering /api/t must not fill the databa
   if (trackHits.size > 5000) for (const [k2, v] of trackHits) if (now > v.reset) trackHits.delete(k2);
   return ++b.n > 120; // events per minute per network
 }
+const fbTries = new Map();
+function feedbackLimited(ip) { // 5 messages per 10 minutes per network
+  const now = Date.now();
+  const t = (fbTries.get(ip) || []).filter((x) => now - x < 10 * 60_000);
+  t.push(now); fbTries.set(ip, t);
+  if (fbTries.size > 5000) for (const [k2, v] of fbTries) if (!v.some((x) => now - x < 10 * 60_000)) fbTries.delete(k2);
+  return t.length > 5;
+}
 const loginTries = new Map();
 function loginLimited(ip) {
   const now = Date.now();
@@ -179,6 +187,18 @@ async function api(req, res, p) {
     return res.end();
   }
 
+  // ----- feedback from visitors
+  if (req.method === 'POST' && p === '/api/feedback') {
+    if (feedbackLimited(getIp(req))) return json(res, 429, { error: 'That is a lot of feedback! Please try again in a few minutes.' });
+    let b; try { b = await readBody(req, 4000); } catch { return json(res, 400, { error: 'Bad request.' }); }
+    const message = String(b.message || '').trim().slice(0, 1500);
+    if (message.length < 3) return json(res, 400, { error: 'Write a few words first.' });
+    if (b.website) return json(res, 200, { ok: true }); // honeypot: bots fill hidden fields
+    const kind = ['idea', 'bug', 'love', 'other'].includes(b.kind) ? b.kind : 'other';
+    await db.addFeedback({ kind, message, contact: String(b.contact || '').trim().slice(0, 120), page: String(b.page || '').slice(0, 80), country: geoOf(req).country, lang: String(b.lang || '').slice(0, 12), width: Math.min(9999, Number(b.width) || 0) || null });
+    return json(res, 200, { ok: true });
+  }
+
   // ----- admin
   if (p.startsWith('/api/admin/')) {
     if (req.method === 'POST') {
@@ -203,6 +223,14 @@ async function api(req, res, p) {
     const url = new URL(req.url, 'http://localhost');
     const days = [1, 7, 14, 30, 90, 365].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 7;
     if (p === '/api/admin/stats' && req.method === 'GET') return json(res, 200, await analytics.stats(days));
+    if (p === '/api/admin/feedback' && req.method === 'GET') return json(res, 200, { items: await db.listFeedback() });
+    if (p === '/api/admin/feedback' && req.method === 'POST') {
+      let b; try { b = await readBody(req); } catch { return json(res, 400, { error: 'Bad request.' }); }
+      const id = Number(b.id);
+      if (!Number.isInteger(id)) return json(res, 400, { error: 'Bad id.' });
+      if (b.action === 'delete') await db.deleteFeedback(id); else await db.setFeedback(id, b.action === 'done');
+      return json(res, 200, { ok: true });
+    }
     if (p === '/api/admin/live' && req.method === 'GET') return json(res, 200, await analytics.liveNow());
     if (p === '/api/admin/export' && req.method === 'GET') {
       const csv = await analytics.exportCsv(days);

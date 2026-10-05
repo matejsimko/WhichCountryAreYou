@@ -45,6 +45,19 @@ const SCHEMA = [
   'CREATE INDEX IF NOT EXISTS ev_name ON ev (name, day)',
   'CREATE INDEX IF NOT EXISTS ev_vh ON ev (vh, ts)',
   // running tally, so reads never scan the votes table
+  `CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    message TEXT NOT NULL,
+    contact TEXT,
+    page TEXT,
+    country TEXT,
+    lang TEXT,
+    width INTEGER,
+    done INTEGER NOT NULL DEFAULT 0
+  )`,
+  'CREATE INDEX IF NOT EXISTS feedback_ts ON feedback (ts)',
   `CREATE TABLE IF NOT EXISTS counts (
     question_id TEXT NOT NULL,
     option_id   TEXT NOT NULL,
@@ -148,4 +161,23 @@ export async function health() {
   await init();
   const t = await client.execute('SELECT COALESCE(SUM(n), 0) AS votes FROM counts');
   return { votes: Number(t.rows[0].votes) };
+}
+
+// ---------- feedback from visitors (shown in the admin panel)
+export async function addFeedback(f) {
+  await init();
+  await client.execute({ sql: 'INSERT INTO feedback (ts, kind, message, contact, page, country, lang, width) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', args: [Date.now(), f.kind, f.message, f.contact || null, f.page || null, f.country || null, f.lang || null, f.width || null] });
+}
+export async function listFeedback() {
+  await init();
+  const r = await client.execute('SELECT id, ts, kind, message, contact, page, country, lang, width, done FROM feedback ORDER BY done ASC, ts DESC LIMIT 500');
+  return r.rows.map((x) => ({ ...x, id: Number(x.id), ts: Number(x.ts), done: Number(x.done), width: x.width == null ? null : Number(x.width) }));
+}
+export async function setFeedback(id, done) {
+  await init();
+  await client.execute({ sql: 'UPDATE feedback SET done = ? WHERE id = ?', args: [done ? 1 : 0, id] });
+}
+export async function deleteFeedback(id) {
+  await init();
+  await client.execute({ sql: 'DELETE FROM feedback WHERE id = ?', args: [id] });
 }

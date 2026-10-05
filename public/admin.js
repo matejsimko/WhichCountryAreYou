@@ -2,7 +2,7 @@
 // Tabs: Overview, Audience, Acquisition, Product, Live. Everything is drawn with plain SVG, no libraries.
 
 const RANGES = [[1, 'Today'], [7, '7 days'], [30, '30 days'], [90, '90 days'], [365, '1 year']];
-const TABS = [['overview', 'Overview'], ['audience', 'Audience'], ['sources', 'Acquisition'], ['product', 'Product'], ['health', 'Health'], ['live', 'Live']];
+const TABS = [['overview', 'Overview'], ['audience', 'Audience'], ['sources', 'Acquisition'], ['product', 'Product'], ['health', 'Health'], ['feedback', 'Feedback'], ['live', 'Live']];
 
 // friendly names and groups for events
 const EVENTS = {
@@ -10,7 +10,7 @@ const EVENTS = {
   share_open: ['Sharing', 'Opened the share popup'], share_click: ['Sharing', 'Clicked a share option'], share_done: ['Sharing', 'Shared or copied (completed)'], share_image: ['Sharing', 'Saved or sent the share card'],
   tour_offer: ['Tutorial', 'Answered the tour offer'], tour_start: ['Tutorial', 'Started the tour'], tour_step: ['Tutorial', 'Tour steps viewed'], tour_done: ['Tutorial', 'Finished the tour'], tour_skip: ['Tutorial', 'Skipped the tour'],
   map_open: ['Map', 'Opened the map'], map_zoom: ['Map', 'Zoomed to a continent'], map_country: ['Map', 'Selected a country on the map'], map_question: ['Map', 'Switched the map question'],
-  pinny_click: ['Pinny', 'Clicked Pinny'], pinny_drag: ['Pinny', 'Carried Pinny around'], pinny_passport: ['Pinny', 'Opened the passport from Pinny'], pinny_tour: ['Pinny', 'Started the tour from Pinny'], pinny_away: ['Pinny', 'Sent Pinny away'],
+  pinny_click: ['Pinny', 'Clicked Pinny'], pinny_drag: ['Pinny', 'Carried Pinny around'], pinny_passport: ['Pinny', 'Opened the passport from Pinny'], pinny_tour: ['Pinny', 'Started the tour from Pinny'], pinny_away: ['Pinny', 'Sent Pinny away'], pinny_feedback: ['Pinny', 'Opened feedback from Pinny'], feedback_open: ['Interface', 'Opened the feedback form'], feedback_sent: ['Interface', 'Sent feedback'],
   outbound: ['Interface', 'Clicked a link that leaves the site'], vote_error: ['Problems', 'Vote failed'], not_found: ['Problems', 'Opened a page that does not exist'], js_error: ['Problems', 'Browser errors'],
   badge: ['Passport and secrets', 'Badges unlocked'], egg: ['Passport and secrets', 'Easter eggs found'], sound: ['Interface', 'Toggled sound'],
 };
@@ -243,6 +243,15 @@ export async function mountAdmin(root, { esc, fmt, flagImg }) {
     </div>`;
   }
 
+  const KIND = { idea: '💡 Idea', bug: '🐛 Bug', love: '💛 Love', other: '💬 Other' };
+  function feedbackTab() {
+    const items = state.fb;
+    if (!items) { api('feedback').then((r) => { state.fb = r.items; if (state.tab === 'feedback') root.querySelector('.abody').innerHTML = feedbackTab(); }).catch(() => {}); return '<div class="loading"><i></i><i></i><i></i></div>'; }
+    if (!items.length) return card('Feedback', '<p class="empty">Nothing yet. Messages sent from the site (footer link or Pinny) land here.</p>');
+    const row = (x) => `<li class="fbk${x.done ? ' done' : ''}"><div class="fbh"><b>${KIND[x.kind] || KIND.other}</b><span>${x.country ? flag(x.country) + esc(country(x.country)) : ''}</span><span>${esc(x.page || '')}</span><span>${ago(x.ts)}</span></div><p>${esc(x.message)}</p>${x.contact ? `<p class="fbc">Reply to: <b>${esc(x.contact)}</b></p>` : ''}<div class="fba"><button class="abtn" data-fb="${x.done ? 'open' : 'done'}" data-id="${x.id}">${x.done ? 'Reopen' : 'Mark done'}</button><button class="abtn ghost" data-fb="delete" data-id="${x.id}">Delete</button></div></li>`;
+    return card('Feedback', `<ul class="fbl">${items.map(row).join('')}</ul>`, { cls: 'wide', sub: `${items.filter((x) => !x.done).length} open, ${items.length} total` });
+  }
+
   function liveTab() {
     const L = state.live || state.data;
     const feed = L.feed || [];
@@ -257,7 +266,7 @@ export async function mountAdmin(root, { esc, fmt, flagImg }) {
     const d = state.data;
     const range = RANGES.map(([n, l]) => `<button class="rng${state.days === n ? ' on' : ''}" data-days="${n}">${l}</button>`).join('');
     const tabs = TABS.map(([k, l]) => `<button class="tab${state.tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('');
-    const body = !d ? '<div class="loading"><i></i><i></i><i></i></div>' : ({ overview: overviewTab, audience: audienceTab, sources: sourcesTab, product: productTab, health: healthTab, live: liveTab }[state.tab])(d);
+    const body = !d ? '<div class="loading"><i></i><i></i><i></i></div>' : ({ overview: overviewTab, audience: audienceTab, sources: sourcesTab, product: productTab, health: healthTab, feedback: feedbackTab, live: liveTab }[state.tab])(d);
     const foot = d ? `<footer class="afoot">${fmt(d.totals.events)} analytics events stored${d.totals.first ? ` since ${new Date(d.totals.first).toLocaleDateString()}` : ''}${d.totals.last ? `. Last event ${ago(d.totals.last)}` : ''}. Data is first-party, cookieless and anonymous (visitors are a daily hash, IPs are never stored). Updated ${ago(d.generatedAt)}.</footer>` : '';
     root.innerHTML = `<div class="adm view">
       <header class="atop"><div class="atitle"><h1>Analytics</h1><span class="live-pill" id="live-pill"><i></i><b>${d ? fmt(d.live) : '…'}</b> online</span></div>
@@ -288,6 +297,8 @@ export async function mountAdmin(root, { esc, fmt, flagImg }) {
   root.onclick = async (e) => {
     const r = e.target.closest('[data-days]'); if (r) { state.days = Number(r.dataset.days); sessionStorage.setItem('adm_days', state.days); state.data = null; shell(); return load(); }
     const t = e.target.closest('[data-tab]'); if (t) { state.tab = t.dataset.tab; history.replaceState(null, '', '#' + state.tab); shell(); return; }
+    const fb = e.target.closest('[data-fb]'); if (fb) { await api('feedback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: Number(fb.dataset.id), action: fb.dataset.fb }) }).catch(() => {}); state.fb = null; root.querySelector('.abody').innerHTML = feedbackTab(); return; }
+    if (e.target.closest('#refresh')) { state.fb = null; }
     if (e.target.closest('#refresh')) { state.data = null; shell(); return load(); }
     if (e.target.closest('#logout')) { await api('logout', { method: 'POST' }).catch(() => {}); try { localStorage.removeItem('wcay_notrack'); } catch { /* ignore */ } return mountAdmin(root, { esc, fmt, flagImg }); }
   };

@@ -2,6 +2,7 @@
 // On the landing page he lives on the hill. When you scroll down he takes off and tags along; scroll back up and he flies home.
 // On every other page he waits bottom right. Click him for your mini passport. Every so often he does something silly.
 import { sfx } from './sfx.js';
+import { openFeedback } from './feedback.js';
 
 const KEY = 'wcay_guide';
 let hidden = false;
@@ -333,6 +334,7 @@ export function initGuide(ctx) {
       </div>
       <div class="gp-badges">${ACHIEVEMENTS.filter((a) => ev.earned.has(a.id)).slice(0, 8).map((a) => `<span title="${esc(a.n)}">${a.e}</span>`).join('') || '<small>No badges yet. Answer something!</small>'}</div>
       <div class="gp-actions"><button class="btn mini" type="button" data-open>Open my passport</button><button class="link" type="button" data-tour>Take the tour</button></div>
+      <button class="link" type="button" data-feedback>Tell the maker something 💬</button>
       <button class="link away" type="button" data-away>Send Pinny away</button>`;
     panel.hidden = false;
     panel.classList.remove('in'); void panel.offsetWidth; panel.classList.add('in');
@@ -376,6 +378,7 @@ export function initGuide(ctx) {
   panel.addEventListener('click', (e) => {
     if (e.target.closest('.panel-x')) closePanel();
     if (e.target.closest('[data-open]')) { emit('pinny_passport'); iris(); }
+    if (e.target.closest('[data-feedback]')) { emit('pinny_feedback'); closePanel(); openFeedback(); }
     if (e.target.closest('[data-tour]')) { emit('pinny_tour'); closePanel(); forceFloat = true; startTour(); }
     if (e.target.closest('[data-away]')) { emit('pinny_away'); hidden = true; el.hidden = true; if (homePin) homePin.style.visibility = ''; try { localStorage.setItem(KEY, 'off'); } catch { /* ignore */ } }
   });
