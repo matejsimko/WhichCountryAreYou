@@ -231,7 +231,7 @@ export async function mountMap(el, ctx, opts = {}) {
     const v = counts[code] || 0;
     const opt = detail.options.find((o) => o.id === code);
     const rank = ranks.get(code);
-    card.innerHTML = `${flagImg(code.toLowerCase())}<div class="map-card-text"><strong>${esc(opt?.label || c.n)}</strong><span>${v ? `${pctText((v / total) * 100, true)} · ${fmt(v)} ${v === 1 ? 'vote' : 'votes'} · #${rank} of ${ranks.size}` : 'No votes yet'}</span></div>${detail.mine === code ? '<span class="tag">you</span>' : ''}<button class="map-card-x" type="button" aria-label="Close">&times;</button>`;
+    card.innerHTML = `${flagImg(code.toLowerCase())}<div class="map-card-text"><strong>${esc(opt?.label || c.n)}</strong><span>${v ? `${pctText((v / total) * 100, true)} · ${fmt(v)} ${v === 1 ? 'vote' : 'votes'} · #${rank} of ${ranks.size}` : 'No votes yet'}</span></div>${detail.mine === code ? '<span class="tag">you</span>' : ''}<a class="btn mini" href="/c/${code.toLowerCase()}" data-link>What they think</a><button class="map-card-x" type="button" aria-label="Close">&times;</button>`;
     card.hidden = false;
     if (animate) { card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop'); }
   }

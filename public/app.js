@@ -336,7 +336,7 @@ function mountBlock(el, d, ctx = {}) {
 
     let note = '', btn = '';
     if (showRes) {
-      note = `${fmt(total)} ${total === 1 ? 'answer' : 'answers'}`;
+      note = `${fmt(total)} ${total === 1 ? 'answer' : 'answers'}${isCountries ? ' · tap a country to see what its people think' : ''}`;
       btn = d.mine ? '<button class="link" type="button" data-act="change">Change my answer</button>' : '<button class="link" type="button" data-act="vote">Add my answer</button>';
     } else {
       btn = d.mine ? '<button class="link" type="button" data-act="results">Back to results</button>' : '<button class="link" type="button" data-act="results">Just show me the results</button>';
@@ -381,6 +381,7 @@ function mountBlock(el, d, ctx = {}) {
   el.addEventListener('click', (e) => {
     const opt = e.target.closest('[data-opt]');
     if (opt && mode === 'vote') return choose(opt.dataset.opt, e);
+    if (opt && mode === 'results' && isCountries) return go('/c/' + opt.dataset.opt.toLowerCase());
     const gr = e.target.closest('[data-group]');
     if (gr) { group = gr.dataset.group; return draw(); }
     const so = e.target.closest('[data-sort]');
@@ -625,6 +626,60 @@ function notFound() {
 
 
 
+
+// ---------- a country's page: what do its people think, compared with the world?
+async function countryPage(code) {
+  setHue(172);
+  const [d, list] = await Promise.all([api('/country/' + code), getList()]);
+  const flag = code.toLowerCase();
+  const name = d.label.replace(/^the /, '');
+  document.title = `What people from ${name} think · Which Country Are You?`;
+  const catName = (id) => catLabel(list, id);
+  const pct = (v) => (v < 1 ? '<1' : Math.round(v)) + '%';
+
+  if (d.hidden) {
+    app.innerHTML = `<div class="view wrap cpage"><a class="back" href="/q/country" data-link>${BACK} Back to countries</a>
+      <div class="cp-hero" data-guide="cpage"><div class="cp-flag">${flagImg(flag)}</div><div><p class="eyebrow">People from</p><h1 class="display">${esc(d.label)}</h1></div></div>
+      <p class="cp-low">Only ${fmt(d.voters)} ${d.voters === 1 ? 'person has' : 'people have'} said they are from ${esc(name)} so far. Once ${d.minVoters} do, you will see what they think and how they differ from the world.</p>
+      <p><a class="btn" href="/" data-link>Say you are from ${esc(name)} ${ARROW}</a></p></div>`;
+    return;
+  }
+
+  // what stands out: the biggest gaps between this country and the world
+  const stand = [];
+  for (const q of d.questions) for (const t of q.top) if (q.total >= 20 && t.n >= 5) stand.push({ q, t, diff: t.pct - t.world });
+  stand.sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff));
+  const seenQ = new Set();
+  const top3 = stand.filter((s) => Math.abs(s.diff) >= 6 && !seenQ.has(s.q.id) && seenQ.add(s.q.id)).slice(0, 3); // one card per question
+
+  const row = (t, max, duelColor) => `<div class="cq-row">
+    <i class="cq-fill" style="--w:${max ? (t.pct / max) * 100 : 0}"></i>
+    ${t.flag ? flagImg(t.flag, 'sm') : t.swatch ? `<span class="opt-swatch sm" style="background:${esc(t.swatch)}"></span>` : t.emoji ? `<span class="opt-emoji" aria-hidden="true">${t.emoji}</span>` : ''}
+    <span class="cq-label">${esc(t.label)}</span>
+    <span class="cq-nums"><b>${pct(t.pct)}</b><small>world ${pct(t.world)}</small>${Math.abs(t.pct - t.world) >= 6 ? `<em class="${t.pct > t.world ? 'up' : 'down'}">${t.pct > t.world ? '+' : ''}${Math.round(t.pct - t.world)}</em>` : ''}</span></div>`;
+
+  const cats = [...new Set(d.questions.map((q) => q.category))];
+  app.innerHTML = `<div class="view wrap cpage">
+    <a class="back" href="/q/country" data-link>${BACK} Back to countries</a>
+    <div class="cp-hero" data-guide="cpage">
+      <div class="cp-flag">${flagImg(flag)}</div>
+      <div><p class="eyebrow">People from</p><h1 class="display">${esc(d.label)}</h1>
+        <p class="cp-meta"><b class="num">${fmt(d.voters)}</b> voters · <b>#${d.rank}</b> of ${list.stats.countries} countries</p></div>
+    </div>
+    <div class="cp-actions"><button class="btn" type="button" id="cp-share">Share this page</button><a class="btn alt" href="/map" data-link>See on the map</a></div>
+    ${top3.length ? `<section class="section" data-guide="cstand"><div class="section-head"><h2>What makes ${esc(name)} different</h2></div><div class="stand-row">${top3.map((s) => `<div class="stand paper hued" style="--h:${s.q.hue}"><span class="stand-e">${s.t.flag ? flagImg(s.t.flag) : s.t.emoji || '✨'}</span><p class="stand-line"><b>${pct(s.t.pct)}</b> say <b>${esc(s.t.label)}</b></p><p class="stand-q">${esc(s.q.prompt)}</p><p class="stand-cmp ${s.diff > 0 ? 'up' : 'down'}">${s.diff > 0 ? '+' : ''}${Math.round(s.diff)} vs the world (${pct(s.t.world)})</p></div>`).join('')}</div></section>` : ''}
+    ${cats.map((c) => `<section class="section"><div class="section-head"><h2>${esc(catName(c))}</h2></div><div class="cq-grid">${d.questions.filter((q) => q.category === c).map((q) => { const max = Math.max(...q.top.map((t) => t.pct), 1); return `<article class="cq paper hued" style="--h:${q.hue}"><h3 class="cq-q"><a href="/q/${esc(q.id)}" data-link>${esc(q.prompt)}</a></h3><div class="cq-rows">${q.top.map((t) => row(t, max)).join('')}</div><p class="cq-foot">${fmt(q.total)} ${esc(name)} answers</p></article>`; }).join('')}</div></section>`).join('')}
+    <p class="fine">Based on people who said they are from ${esc(name)} on this device. Small groups are hidden. This is a game, not a survey.</p>
+  </div>`;
+
+  app.querySelector('#cp-share')?.addEventListener('click', () => {
+    const s = top3[0];
+    const text = s ? `People from ${name}: ${pct(s.t.pct)} say ${s.t.label} (${s.diff > 0 ? '+' : ''}${Math.round(s.diff)} vs the world). Which country are you?` : `What do people from ${name} think? See how they vote.`;
+    openShare({ title: `What people from ${name} think`, text, url: location.origin + '/c/' + flag, toast });
+  });
+  requestAnimationFrame(() => requestAnimationFrame(() => app.classList.add('cp-in')));
+}
+
 // ---------- Pinny's brain: messages that depend on what you've actually done
 let pageQ = null; // the question page currently open
 function guideTip(key) {
@@ -662,6 +717,8 @@ function guideTip(key) {
       return next ? `Next badge: ${next.n}. ${next.d}` : 'All badges! Now hunt the secrets.';
     }
     case 'about': return 'Why this exists. Short read!';
+    case 'cpage': return 'See how they differ from the world!';
+    case 'cstand': return 'The biggest gaps vs the world.';
     default: return key;
   }
 }
@@ -745,6 +802,7 @@ const routes = [
   [/^\/explore\/?$/, () => explore()],
   [/^\/map\/?$/, () => mapPage()],
   [/^\/profile\/?$/, () => profilePage()],
+  [/^\/c\/([a-z]{2})\/?$/, (m) => countryPage(m[1])],
   [/^\/q\/([a-z0-9-]+)\/?$/, (m) => questionPage(m[1])],
   [/^\/about\/?$/, () => about()],
 ];

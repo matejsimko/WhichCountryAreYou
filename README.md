@@ -27,6 +27,10 @@ npm run seed:clear   # remove the demo votes
 
 `/map` and the landing page show an interactive world map: coloured by votes for any country question, smooth zoom to continents and countries, drag, pinch and Ctrl+scroll zoom, your own answer pinned. Outlines live in `public/map.json`, built from Natural Earth with `npm run build:map` (dev dependencies only; the result is committed). `public/map.js` is loaded only when the map scrolls into view.
 
+## Country pages
+
+`/c/sk`, `/c/us`, ... show what the people from a country answer, next to the world's answers, with a "what makes it different" strip of the biggest gaps. Built by joining votes on the device that said it is from that country (`countryProfile` in `db.js`, cached for 60 s, endpoint `/api/country/:cc`). Groups under 5 voters are hidden. Tap a country in the country results or on the map to open its page. In local demo data the seed script invents linked "people" so the pages have something to show.
+
 ## Pinny, the pet
 
 `public/guide.js` is a flying companion. On the landing page he sits on the hill; scroll down and he takes off (wings, sparkle trail) and tags along, switching sides with a short tip per section. Elsewhere he waits bottom right. Eyes follow the cursor, hovering gets hearts, you can pick him up and carry him, he reacts to votes, badges and secrets, falls asleep when you stop, and now and then does a trick (somersault, orbit, loop, zoomies, chase, yawn, peek, dance). Click him for a mini passport that wipes into the full passport. `public/tour.js` is the 1-minute tutorial he offers on the first visit.

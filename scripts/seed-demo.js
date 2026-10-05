@@ -27,21 +27,33 @@ const rand = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296);
 const BIG = { IN: 9, US: 8, BR: 6, ID: 4, NG: 3.5, DE: 4, GB: 4.5, MX: 3, SK: 3, PL: 2.8, FR: 3, IT: 3, JP: 2.5, TR: 2.5, ES: 2.5, CA: 3, AU: 2.2, NL: 2, CZ: 1.6, PH: 2.5, EG: 2 };
 const now = Date.now();
 const rows = [];
+const ROW = 'INSERT INTO votes (question_id, device_id, option_id, ip_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)';
+const pickIdx = (w) => { const sum = w.reduce((x, y) => x + y, 0); let r = rand() * sum, i = 0; while (r > w[i] && i < w.length - 1) r -= w[i++]; return i; };
+const frac = (str) => { let h = 2166136261; for (const ch of str) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return ((h >>> 0) % 10000) / 10000; };
+
+// base popularity of every option, per question
+const base = {};
 for (const q of QUESTIONS) {
   const duel = q.options.length === 2;
-  const weights = q.options.map((o, i) => {
-    if (q.kind === 'countries') return BIG[o.id] ?? 0.15 + rand() * 0.9;
-    if (duel) return 0.25 + rand() * 0.75;
-    return 1 / (1 + i * 0.55) + rand() * 0.25;
-  });
-  const sum = weights.reduce((a, b) => a + b, 0);
-  const N = q.kind === 'countries' ? 5200 : 1800 + Math.floor(rand() * 2500);
-  for (let i = 0; i < N; i++) {
-    let r = rand() * sum, idx = 0;
-    while (r > weights[idx] && idx < weights.length - 1) r -= weights[idx++];
-    rows.push({ sql: 'INSERT INTO votes (question_id, device_id, option_id, ip_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', args: [q.id, `seed-${q.id}-${i}`, q.options[idx].id, 'seed', now, now] });
+  base[q.id] = q.options.map((o, i) => (q.kind === 'countries' ? BIG[o.id] ?? 0.15 + rand() * 0.9 : duel ? 0.25 + rand() * 0.75 : 1 / (1 + i * 0.55) + rand() * 0.25));
+}
+
+// "People": one device answers the country question and a bunch of others, and each country leans its own way.
+// That is what makes the country pages (what do Slovaks think?) show real differences.
+const countryQ = QUESTIONS.find((q) => q.id === 'country');
+const PEOPLE = 14000;
+for (let i = 0; i < PEOPLE; i++) {
+  const ci = pickIdx(base.country);
+  const cc = countryQ.options[ci].id;
+  const dev = `seed-p-${i}`;
+  rows.push({ sql: ROW, args: ['country', dev, cc, 'seed', now, now] });
+  for (const q of QUESTIONS) {
+    if (q.id === 'country' || rand() > 0.72) continue;
+    const w = base[q.id].map((b, k) => b * (0.35 + 1.4 * frac(cc + q.id + q.options[k].id)));
+    rows.push({ sql: ROW, args: [q.id, dev, q.options[pickIdx(w)].id, 'seed', now, now] });
   }
 }
+
 // cities and regions for a few countries, weighted by population
 import fs from 'node:fs';
 const placesAll = JSON.parse(fs.readFileSync(new URL('../public/places.json', import.meta.url), 'utf8'));

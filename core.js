@@ -135,6 +135,33 @@ async function api(req, res, p) {
     return json(res, 200, { questions, categories: CATEGORIES, featured: FEATURED, placeCountries: Object.keys(PLACES).map((c) => c.toLowerCase()), placeMine, stats: { answers, countries, questions: questions.length } });
   }
 
+  const cm = /^\/api\/country\/([a-z]{2})$/.exec(p);
+  if (req.method === 'GET' && cm) {
+    const code = cm[1].toUpperCase();
+    const country = QUESTIONS[0].options.find((o) => o.id === code);
+    if (!country) return json(res, 404, { error: 'No such country.' });
+    const MIN_VOTERS = 5; // below this the breakdown could point at individuals, so it stays hidden
+    const [prof, world] = await Promise.all([db.countryProfile(code), db.allCounts()]);
+    const out = { code, label: country.label, voters: prof.voters, minVoters: MIN_VOTERS, hidden: prof.voters < MIN_VOTERS, rank: 0, questions: [] };
+    const cc = world.country || {};
+    out.rank = Object.entries(cc).sort((a, b) => b[1] - a[1]).findIndex(([id]) => id === code) + 1;
+    out.totalCountryVotes = Object.values(cc).reduce((a, b) => a + b, 0);
+    if (!out.hidden) {
+      for (const q of QUESTIONS) {
+        if (q.kind === 'countries') continue;
+        const mine = prof.byQuestion[q.id];
+        if (!mine) continue;
+        const total = Object.values(mine).reduce((a, b) => a + b, 0);
+        if (total < MIN_VOTERS) continue;
+        const wTotal = Object.values(world[q.id] || {}).reduce((a, b) => a + b, 0) || 1;
+        const rows = q.options.map((o) => ({ id: o.id, label: o.label, emoji: o.emoji || null, flag: o.code ? o.code.toLowerCase() : o.flag || null, swatch: o.swatch || null, n: mine[o.id] || 0, pct: ((mine[o.id] || 0) / total) * 100, world: (((world[q.id] || {})[o.id] || 0) / wTotal) * 100 }))
+          .sort((a, b) => b.n - a.n);
+        out.questions.push({ id: q.id, prompt: q.prompt, category: q.category, hue: q.hue, total, duel: q.options.length === 2, top: rows.slice(0, q.options.length === 2 ? 2 : 4) });
+      }
+    }
+    return json(res, 200, out);
+  }
+
   const one = /^\/api\/questions\/([a-z0-9-]+)$/.exec(p);
   if (req.method === 'GET' && one) {
     const q = getQuestion(one[1]);
@@ -183,6 +210,11 @@ async function metaFor(pathname) {
       title = `${q.prompt} · Which Country Are You?`;
       desc = total ? `${total.toLocaleString('en-US')} people have answered so far. Add yours and see how the world votes.` : 'Nobody has answered yet. Be the first.';
     }
+  } else if (/^\/c\/([a-z]{2})\/?$/.test(pathname)) {
+    const code = pathname.split('/')[2].slice(0, 2).toUpperCase();
+    const name = (countryLabel.get(code) || code).replace(/^the /, '');
+    title = `What people from ${name} think · Which Country Are You?`;
+    desc = `Coffee or tea? Cats or dogs? See how people from ${name} vote compared with the rest of the world.`;
   } else if (/^\/explore\/?$/.test(pathname)) {
     title = 'Every question · Which Country Are You?';
   } else if (/^\/profile\/?$/.test(pathname)) {
@@ -229,11 +261,13 @@ export async function handle(req, res) {
       return res.end(`User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
     }
     if (pathname === '/sitemap.xml') {
-      const urls = ['/', '/explore', '/map', '/about', ...QUESTIONS.map((q) => `/q/${q.id}`)];
+      const urls = ['/', '/explore', '/map', '/about', ...QUESTIONS.map((q) => `/q/${q.id}`), ...QUESTIONS[0].options.map((o) => `/c/${o.id.toLowerCase()}`)];
       res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8' });
       return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${SITE_URL}${u}</loc></url>`).join('')}</urlset>`);
     }
 
+    const cm2 = /^\/c\/([a-z]{2})\/?$/.exec(pathname);
+    if (cm2) return await sendShell(res, pathname, countryLabel.has(cm2[1].toUpperCase()) ? 200 : 404);
     const m = /^\/q\/([a-z0-9-]+)\/?$/.exec(pathname);
     if (m && !getQuestion(m[1])) return await sendShell(res, pathname, 404);
     if (pathname === '/' || m || /^\/(explore|about|map|profile)\/?$/.test(pathname)) return await sendShell(res, pathname);

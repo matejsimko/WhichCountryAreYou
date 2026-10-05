@@ -95,3 +95,28 @@ export async function castVote(q, dev, opt, ipHash) {
     },
   ], 'write');
 }
+
+// What do the people who said they are from `cc` answer elsewhere? Joins on the device that gave each answer.
+// Returns { voters, byQuestion: { qid: { optionId: n } } }. Cached briefly because it is the heaviest query.
+const profileCache = new Map();
+export async function countryProfile(cc) {
+  const hit = profileCache.get(cc);
+  if (hit && Date.now() - hit.at < 60_000) return hit.v;
+  await init();
+  const [rs, vs] = await Promise.all([
+    client.execute({
+      sql: `SELECT v.question_id, v.option_id, COUNT(*) AS n
+            FROM votes v JOIN votes c ON c.device_id = v.device_id AND c.question_id = 'country' AND c.option_id = ?
+            WHERE v.question_id != 'country' AND v.question_id NOT LIKE 'place-%'
+            GROUP BY v.question_id, v.option_id`,
+      args: [cc],
+    }),
+    client.execute({ sql: "SELECT n FROM counts WHERE question_id = 'country' AND option_id = ?", args: [cc] }),
+  ]);
+  const byQuestion = {};
+  for (const r of rs.rows) (byQuestion[r.question_id] ??= {})[r.option_id] = Number(r.n);
+  const v = { voters: Number(vs.rows[0]?.n || 0), byQuestion };
+  profileCache.set(cc, { at: Date.now(), v });
+  if (profileCache.size > 300) profileCache.delete(profileCache.keys().next().value);
+  return v;
+}
