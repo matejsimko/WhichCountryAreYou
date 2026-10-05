@@ -135,6 +135,17 @@ async function api(req, res, p) {
     return json(res, 200, { questions, categories: CATEGORIES, featured: FEATURED, placeCountries: Object.keys(PLACES).map((c) => c.toLowerCase()), placeMine, stats: { answers, countries, questions: questions.length } });
   }
 
+  if (req.method === 'GET' && p === '/api/health') {
+    // open this after deploying: it says whether the database is connected
+    if (process.env.VERCEL && !process.env.TURSO_DATABASE_URL) return json(res, 503, { ok: false, problem: 'TURSO_DATABASE_URL is not set in Vercel (Project, Settings, Environment Variables), then redeploy.' });
+    try {
+      const h = await db.health();
+      return json(res, 200, { ok: true, database: db.DB_KIND, votes: h.votes, secretSet: SECRET !== 'dev-only-secret-change-me', siteUrl: SITE_URL });
+    } catch (err) {
+      return json(res, 503, { ok: false, database: db.DB_KIND, problem: String(err.message || err).slice(0, 200), hint: 'Check TURSO_DATABASE_URL and TURSO_AUTH_TOKEN, then redeploy.' });
+    }
+  }
+
   const cm = /^\/api\/country\/([a-z]{2})$/.exec(p);
   if (req.method === 'GET' && cm) {
     const code = cm[1].toUpperCase();
@@ -237,7 +248,8 @@ async function metaFor(pathname) {
 async function sendShell(res, pathname, status = 200) {
   let meta = '<title>Which Country Are You?</title>';
   try { meta = await metaFor(pathname); } catch (err) { console.error('meta failed', err); } // a DB hiccup must not blank the page
-  const html = fs.readFileSync(TEMPLATE, 'utf8').replace('<!--META-->', meta);
+  const analytics = process.env.VERCEL ? '<script defer src="/_vercel/insights/script.js"></script>' : '';
+  const html = fs.readFileSync(TEMPLATE, 'utf8').replace('<!--META-->', meta).replace('<!--ANALYTICS-->', analytics);
   res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
   res.end(html);
 }

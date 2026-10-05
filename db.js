@@ -6,7 +6,9 @@ import path from 'node:path';
 import { createClient } from '@libsql/client';
 
 export const DB_URL = process.env.TURSO_DATABASE_URL || 'file:data/votes.db';
-if (DB_URL.startsWith('file:')) fs.mkdirSync(path.dirname(DB_URL.slice(5)), { recursive: true });
+export const DB_KIND = DB_URL.startsWith('file:') ? 'local file' : 'turso';
+// A read-only filesystem (Vercel without Turso configured) must not crash the whole function at import time.
+if (DB_URL.startsWith('file:')) { try { fs.mkdirSync(path.dirname(DB_URL.slice(5)), { recursive: true }); } catch { /* reported by /api/health */ } }
 
 export const client = createClient({ url: DB_URL, authToken: process.env.TURSO_AUTH_TOKEN });
 
@@ -119,4 +121,11 @@ export async function countryProfile(cc) {
   profileCache.set(cc, { at: Date.now(), v });
   if (profileCache.size > 300) profileCache.delete(profileCache.keys().next().value);
   return v;
+}
+
+// Simple end-to-end check for /api/health: can we read and write?
+export async function health() {
+  await init();
+  const t = await client.execute('SELECT COALESCE(SUM(n), 0) AS votes FROM counts');
+  return { votes: Number(t.rows[0].votes) };
 }
